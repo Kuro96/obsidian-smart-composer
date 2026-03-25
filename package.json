@@ -79,6 +79,9 @@
     "react-textarea-autosize": "^8.5.9",
     "remark-gfm": "^4.0.0",
     "shell-env": "^4.0.1",
+    "http-proxy-agent": "^7.0.2",
+    "https-proxy-agent": "^7.0.6",
+    "socks-proxy-agent": "^8.0.5",
     "uuid": "^10.0.0",
     "vscode-diff": "^2.1.1",
     "zod": "^3.23.8"

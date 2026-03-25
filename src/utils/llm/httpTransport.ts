@@ -2,14 +2,19 @@
  * Codex endpoints block direct fetch with CORS, so we use Node's http/https on
  * desktop. Obsidian's requestUrl can bypass CORS but does not support streaming
  * today; Codex requires stream: true, so a non-streaming fallback needs more
- * work and is not worth it for now. Mobile has no Node APIs, so Node modules are
- * loaded at runtime only when running on desktop.
+ * work and is not worth it for now. To cooperate with proxy setups, we resolve
+ * session proxy rules from Electron when available and translate them into Node
+ * proxy agents. Mobile has no Node APIs, so Node modules are loaded at runtime
+ * only when running on desktop.
  */
-import type { IncomingMessage } from 'http'
 
 import { Platform } from 'obsidian'
 
 export type StreamSource = ReadableStream<Uint8Array> | NodeJS.ReadableStream
+type NodeLikeIncomingMessage = NodeJS.ReadableStream & {
+  statusCode?: number
+}
+type RequestAgent = import('http').Agent
 
 type PostOptions = {
   headers?: Record<string, string>
@@ -138,7 +143,7 @@ async function nodePost(
   headers?: Record<string, string>,
   signal?: AbortSignal,
   contentType = 'application/json',
-): Promise<IncomingMessage> {
+): Promise<NodeLikeIncomingMessage> {
   if (!Platform.isDesktop) {
     throw new Error('HTTP transport is not available on mobile')
   }
@@ -149,27 +154,27 @@ async function nodePost(
   const https = require('https') as typeof import('https')
   const url = new URL(endpoint)
   const client = url.protocol === 'https:' ? https : http
+  const agent = await getProxyAgent(endpoint)
   const payloadLength = Buffer.byteLength(body)
   const requestHeaders: Record<string, string> = {
     'Content-Type': contentType,
     'Content-Length': payloadLength.toString(),
     ...(headers ?? {}),
   }
+  const requestOptions: import('http').RequestOptions = {
+    protocol: url.protocol,
+    hostname: url.hostname,
+    port: url.port ? Number(url.port) : undefined,
+    path: `${url.pathname}${url.search}`,
+    method: 'POST',
+    headers: requestHeaders,
+    ...(agent ? { agent } : {}),
+  }
 
   return new Promise((resolve, reject) => {
-    const request = client.request(
-      {
-        protocol: url.protocol,
-        hostname: url.hostname,
-        port: url.port ? Number(url.port) : undefined,
-        path: `${url.pathname}${url.search}`,
-        method: 'POST',
-        headers: requestHeaders,
-      },
-      (response) => {
-        resolve(response)
-      },
-    )
+    const request = client.request(requestOptions, (response) => {
+      resolve(response)
+    })
 
     let settled = false
     const rejectOnce = (error: Error) => {
@@ -204,6 +209,115 @@ async function nodePost(
     request.write(body)
     request.end()
   })
+}
+
+async function getProxyAgent(
+  endpoint: string,
+): Promise<RequestAgent | undefined> {
+  const proxyUrl =
+    (await getElectronSessionProxyUrl(endpoint)) ?? getEnvProxyUrl(endpoint)
+  if (!proxyUrl) {
+    return undefined
+  }
+
+  const endpointProtocol = new URL(endpoint).protocol
+  if (proxyUrl.startsWith('socks')) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { SocksProxyAgent } = require('socks-proxy-agent') as {
+      SocksProxyAgent: new (proxy: string) => RequestAgent
+    }
+    return new SocksProxyAgent(proxyUrl)
+  }
+
+  if (endpointProtocol === 'https:') {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { HttpsProxyAgent } = require('https-proxy-agent') as {
+      HttpsProxyAgent: new (proxy: string) => RequestAgent
+    }
+    return new HttpsProxyAgent(proxyUrl)
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { HttpProxyAgent } = require('http-proxy-agent') as {
+    HttpProxyAgent: new (proxy: string) => RequestAgent
+  }
+  return new HttpProxyAgent(proxyUrl)
+}
+
+async function getElectronSessionProxyUrl(
+  endpoint: string,
+): Promise<string | undefined> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const electron = require('electron') as {
+      session?: {
+        defaultSession?: {
+          resolveProxy?: (url: string) => Promise<string>
+        }
+      }
+      remote?: {
+        session?: {
+          defaultSession?: {
+            resolveProxy?: (url: string) => Promise<string>
+          }
+        }
+      }
+    }
+
+    const defaultSession =
+      electron.session?.defaultSession ??
+      electron.remote?.session?.defaultSession
+    const proxyRules = await defaultSession?.resolveProxy?.(endpoint)
+    return proxyRules ? normalizeProxyRules(proxyRules) : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function getEnvProxyUrl(endpoint: string): string | undefined {
+  const protocol = new URL(endpoint).protocol
+  const env = process.env
+  if (protocol === 'https:') {
+    return (
+      env.HTTPS_PROXY ??
+      env.https_proxy ??
+      env.HTTP_PROXY ??
+      env.http_proxy ??
+      env.ALL_PROXY ??
+      env.all_proxy
+    )
+  }
+
+  return env.HTTP_PROXY ?? env.http_proxy ?? env.ALL_PROXY ?? env.all_proxy
+}
+
+function normalizeProxyRules(proxyRules: string): string | undefined {
+  for (const rawRule of proxyRules.split(';')) {
+    const rule = rawRule.trim()
+    if (!rule || rule === 'DIRECT') {
+      continue
+    }
+
+    const [scheme, hostPort] = rule.split(/\s+/, 2)
+    if (!scheme || !hostPort) {
+      continue
+    }
+
+    switch (scheme.toUpperCase()) {
+      case 'PROXY':
+        return `http://${hostPort}`
+      case 'HTTPS':
+        return `https://${hostPort}`
+      case 'SOCKS':
+        return `socks://${hostPort}`
+      case 'SOCKS4':
+        return `socks4://${hostPort}`
+      case 'SOCKS5':
+        return `socks5://${hostPort}`
+    }
+  }
+
+  return undefined
 }
 
 async function readStreamToString(
