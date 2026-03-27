@@ -3,78 +3,205 @@ import { App } from 'obsidian'
 import { ChatManager } from './ChatManager'
 import { CHAT_SCHEMA_VERSION, ChatConversation } from './types'
 
-const mockAdapter = {
-  exists: jest.fn().mockResolvedValue(true),
-  mkdir: jest.fn().mockResolvedValue(undefined),
-  read: jest.fn().mockResolvedValue(''),
-  write: jest.fn().mockResolvedValue(undefined),
-  remove: jest.fn().mockResolvedValue(undefined),
-  list: jest.fn().mockResolvedValue({ files: [], folders: [] }),
+const CHAT_DIR = '.smtcmp_json_db/chats'
+
+function createMockApp(initialFiles: Record<string, string> = {}) {
+  const files = new Map(Object.entries(initialFiles))
+
+  const mockAdapter = {
+    exists: jest.fn(async (filePath: string) => {
+      if (filePath === CHAT_DIR) {
+        return true
+      }
+
+      return files.has(filePath)
+    }),
+    mkdir: jest.fn().mockResolvedValue(undefined),
+    read: jest.fn(async (filePath: string) => {
+      const content = files.get(filePath)
+      if (content === undefined) {
+        throw new Error(`File not found: ${filePath}`)
+      }
+
+      return content
+    }),
+    write: jest.fn(async (filePath: string, content: string) => {
+      files.set(filePath, content)
+    }),
+    remove: jest.fn(async (filePath: string) => {
+      files.delete(filePath)
+    }),
+    list: jest.fn(async (dirPath: string) => {
+      const prefix = `${dirPath}/`
+      return {
+        files: Array.from(files.keys()).filter((filePath) =>
+          filePath.startsWith(prefix),
+        ),
+        folders: [],
+      }
+    }),
+  }
+
+  const mockApp = {
+    vault: {
+      adapter: mockAdapter,
+    },
+  } as unknown as App
+
+  return {
+    app: mockApp,
+    files,
+  }
 }
 
-const mockVault = {
-  adapter: mockAdapter,
+function createChat(
+  overrides: Partial<ChatConversation> & Pick<ChatConversation, 'id'>,
+): ChatConversation {
+  return {
+    id: overrides.id,
+    title: overrides.title ?? 'New chat',
+    messages: overrides.messages ?? [],
+    createdAt: overrides.createdAt ?? 100,
+    updatedAt: overrides.updatedAt ?? 100,
+    schemaVersion: overrides.schemaVersion ?? CHAT_SCHEMA_VERSION,
+  }
 }
-
-const mockApp = {
-  vault: mockVault,
-} as unknown as App
 
 describe('ChatManager', () => {
-  let chatManager: ChatManager
-
-  beforeEach(() => {
-    chatManager = new ChatManager(mockApp)
+  afterEach(() => {
+    jest.restoreAllMocks()
   })
 
-  describe('filename generation and parsing roundtrip', () => {
-    const testTitles = [
-      'Simple Title',
-      'Special & Characters! #$%^',
-      'Unicode 中文 日本語 한국어',
-      'Extremely long title that might cause issues with file systems',
-      'Title with trailing spaces   ',
-      '   Title with leading spaces',
-      'Title with _ underscores_and_special_chars',
-      'Title with.dots.and-dashes',
-      'Title with / slashes \\ and \\ backslashes',
-      'Title with "quotes" and \'apostrophes\'',
-      'Title with <html> tags',
-      'Title with newlines\nand\ttabs',
-      '🔥 Title with emojis 🚀',
-      ' ',
-      'Title-with-123e4567-e89b-12d3-a456-426614174000-uuid-like-substring',
-      '_Title_starting_with_underscore',
-      'Title+with+plus+signs',
-      'Title%20with%20encoded%20characters',
-      'Title ending with .json',
-      'v1_Title_starting_like_a_versioned_file',
-      '..Title with leading dots',
-      'Title with trailing dots..',
-    ]
+  describe('filename generation', () => {
+    it('uses a stable id-based file name', () => {
+      const { app } = createMockApp()
+      const chatManager = new ChatManager(app)
 
-    test.each(testTitles)('should correctly roundtrip title: %s', (title) => {
-      const chat: ChatConversation = {
-        id: '123e4567-e89b-12d3-a456-426614174000',
-        title,
-        messages: [],
-        createdAt: 1620000000000,
-        updatedAt: 1620000000000,
-        schemaVersion: CHAT_SCHEMA_VERSION,
-      }
+      const chat = createChat({ id: '123e4567-e89b-12d3-a456-426614174000' })
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const fileName = (chatManager as any).generateFileName(chat)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const metadata = (chatManager as any).parseFileName(fileName)
+      expect(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (chatManager as any).generateFileName(chat),
+      ).toBe('123e4567-e89b-12d3-a456-426614174000.json')
+    })
+  })
 
-      expect(metadata).not.toBeNull()
-      if (metadata) {
-        expect(metadata.id).toBe(chat.id)
-        expect(metadata.title).toBe(chat.title)
-        expect(metadata.updatedAt).toBe(chat.updatedAt)
-        expect(metadata.schemaVersion).toBe(chat.schemaVersion)
-      }
+  describe('duplicate handling', () => {
+    it('deduplicates chats by id when listing chats', async () => {
+      const olderChat = createChat({
+        id: 'same-id',
+        title: 'Old title',
+        updatedAt: 100,
+      })
+      const newerChat = createChat({
+        id: 'same-id',
+        title: 'New title',
+        updatedAt: 200,
+      })
+
+      const { app } = createMockApp({
+        [`${CHAT_DIR}/v1_Old%20title_100_same-id.json`]:
+          JSON.stringify(olderChat),
+        [`${CHAT_DIR}/v1_New%20title_200_same-id.json`]:
+          JSON.stringify(newerChat),
+      })
+
+      const chatManager = new ChatManager(app)
+      const chats = await chatManager.listChats()
+
+      expect(chats).toEqual([
+        {
+          id: 'same-id',
+          schemaVersion: CHAT_SCHEMA_VERSION,
+          title: 'New title',
+          updatedAt: 200,
+        },
+      ])
+    })
+
+    it('loads the latest duplicate chat by id', async () => {
+      const olderChat = createChat({
+        id: 'same-id',
+        title: 'Old title',
+        updatedAt: 100,
+      })
+      const newerChat = createChat({
+        id: 'same-id',
+        title: 'New title',
+        updatedAt: 200,
+      })
+
+      const { app } = createMockApp({
+        [`${CHAT_DIR}/v1_Old%20title_100_same-id.json`]:
+          JSON.stringify(olderChat),
+        [`${CHAT_DIR}/v1_New%20title_200_same-id.json`]:
+          JSON.stringify(newerChat),
+      })
+
+      const chatManager = new ChatManager(app)
+
+      await expect(chatManager.findById('same-id')).resolves.toEqual(newerChat)
+    })
+
+    it('repairs duplicate and legacy chat files into one stable file', async () => {
+      const olderChat = createChat({
+        id: 'same-id',
+        title: 'Old title',
+        updatedAt: 100,
+      })
+      const newerChat = createChat({
+        id: 'same-id',
+        title: 'New title',
+        updatedAt: 200,
+      })
+
+      const { app, files } = createMockApp({
+        [`${CHAT_DIR}/v1_Old%20title_100_same-id.json`]:
+          JSON.stringify(olderChat),
+        [`${CHAT_DIR}/v1_New%20title_200_same-id.json`]:
+          JSON.stringify(newerChat),
+      })
+
+      const chatManager = new ChatManager(app)
+      const result = await chatManager.repairStorage()
+
+      expect(result).toEqual({
+        scannedFiles: 2,
+        repairedChats: 1,
+        removedFiles: 2,
+      })
+
+      expect(Array.from(files.keys())).toEqual([`${CHAT_DIR}/same-id.json`])
+      expect(JSON.parse(files.get(`${CHAT_DIR}/same-id.json`) ?? '')).toEqual(
+        newerChat,
+      )
+    })
+
+    it('updates an existing legacy chat into the stable file and removes stale copies', async () => {
+      jest.spyOn(Date, 'now').mockReturnValue(300)
+
+      const olderChat = createChat({
+        id: 'same-id',
+        title: 'Old title',
+        updatedAt: 100,
+      })
+
+      const { app, files } = createMockApp({
+        [`${CHAT_DIR}/v1_Old%20title_100_same-id.json`]:
+          JSON.stringify(olderChat),
+      })
+
+      const chatManager = new ChatManager(app)
+      const updatedChat = await chatManager.updateChat('same-id', {
+        title: 'Renamed title',
+      })
+
+      expect(updatedChat).toEqual({
+        ...olderChat,
+        title: 'Renamed title',
+        updatedAt: 300,
+      })
+      expect(Array.from(files.keys())).toEqual([`${CHAT_DIR}/same-id.json`])
     })
   })
 })

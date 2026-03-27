@@ -61,6 +61,17 @@ async function transferChatHistoryFromLegacy(app: App): Promise<void> {
   console.log('Chat history migration to JSON database completed')
 }
 
+async function repairJsonChatStorage(app: App): Promise<void> {
+  const chatManager = new ChatManager(app)
+  const result = await chatManager.repairStorage()
+
+  if (result.repairedChats > 0 || result.removedFiles > 0) {
+    console.log(
+      `Repaired chat JSON storage: ${result.repairedChats} chats, ${result.removedFiles} stale files removed out of ${result.scannedFiles} files`,
+    )
+  }
+}
+
 async function transferTemplatesFromDrizzle(
   app: App,
   dbManager: DatabaseManager,
@@ -107,11 +118,13 @@ export async function migrateToJsonDatabase(
   onMigrationComplete?: () => void,
 ): Promise<void> {
   if (await hasMigrationCompleted(app)) {
+    await repairJsonChatStorage(app)
     return
   }
 
   await transferChatHistoryFromLegacy(app)
   await transferTemplatesFromDrizzle(app, dbManager)
+  await repairJsonChatStorage(app)
   await markMigrationCompleted(app)
   onMigrationComplete?.()
 }
