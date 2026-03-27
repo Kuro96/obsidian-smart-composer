@@ -6,7 +6,9 @@ import {
   ChevronUp,
   CircleMinus,
   Edit,
+  FolderOpen,
   Loader2,
+  Package,
   Trash2,
   X,
 } from 'lucide-react'
@@ -38,6 +40,13 @@ export function McpSection({ app, plugin }: McpSectionProps) {
   const [mcpManager, setMcpManager] = useState<McpManager | null>(null)
   const [mcpServers, setMcpServers] = useState<McpServerState[]>([])
   const [builtInTools, setBuiltInTools] = useState<McpTool[]>([])
+
+  const connectedServers = mcpServers.filter(
+    (server) => server.status === McpServerStatus.Connected,
+  )
+  const installedToolCount = connectedServers.reduce((count, server) => {
+    return count + server.tools.length
+  }, 0)
 
   useEffect(() => {
     const initMCPManager = async () => {
@@ -80,49 +89,98 @@ export function McpSection({ app, plugin }: McpSectionProps) {
         </div>
       ) : (
         <>
-          <div className="smtcmp-settings-sub-header-container">
-            <div className="smtcmp-settings-sub-header">MCP Servers</div>
-            <ObsidianButton
-              text="Add MCP Server"
-              onClick={() => new AddMcpServerModal(app, plugin).open()}
-            />
+          <div className="smtcmp-mcp-overview-grid">
+            <div className="smtcmp-mcp-overview-card">
+              <div className="smtcmp-mcp-overview-label">Installed Servers</div>
+              <div className="smtcmp-mcp-overview-value">
+                {mcpServers.length}
+              </div>
+              <div className="smtcmp-mcp-overview-meta">
+                {connectedServers.length} connected
+              </div>
+            </div>
+            <div className="smtcmp-mcp-overview-card">
+              <div className="smtcmp-mcp-overview-label">External Tools</div>
+              <div className="smtcmp-mcp-overview-value">
+                {installedToolCount}
+              </div>
+              <div className="smtcmp-mcp-overview-meta">
+                From user-installed MCP servers
+              </div>
+            </div>
+            <div className="smtcmp-mcp-overview-card smtcmp-mcp-overview-card--builtin">
+              <div className="smtcmp-mcp-overview-label">
+                Built-in Vault Tools
+              </div>
+              <div className="smtcmp-mcp-overview-value">
+                {builtInTools.length}
+              </div>
+              <div className="smtcmp-mcp-overview-meta">
+                Bundled with Smart Composer
+              </div>
+            </div>
           </div>
 
-          <div className="smtcmp-mcp-servers-container">
-            <div className="smtcmp-mcp-servers-header">
-              <div>Server</div>
-              <div>Status</div>
-              <div>Enabled</div>
-              <div>Actions</div>
-            </div>
-            {mcpServers.length > 0 ? (
-              mcpServers.map((server) => (
-                <McpServerComponent
-                  key={server.name}
-                  server={server}
-                  app={app}
-                  plugin={plugin}
-                />
-              ))
-            ) : (
-              <div className="smtcmp-mcp-servers-empty">
-                No MCP servers found
+          <div className="smtcmp-mcp-panel">
+            <div className="smtcmp-mcp-panel-header">
+              <div>
+                <div className="smtcmp-mcp-panel-title">
+                  User-Installed MCP Servers
+                </div>
+                <div className="smtcmp-mcp-panel-desc">
+                  Manage external MCP servers, their tool availability, and
+                  auto-execution behavior.
+                </div>
               </div>
-            )}
+              <ObsidianButton
+                text="Add MCP Server"
+                onClick={() => new AddMcpServerModal(app, plugin).open()}
+              />
+            </div>
+            <div className="smtcmp-mcp-servers-container">
+              {mcpServers.length > 0 ? (
+                mcpServers.map((server) => (
+                  <McpServerComponent
+                    key={server.name}
+                    server={server}
+                    app={app}
+                    plugin={plugin}
+                  />
+                ))
+              ) : (
+                <div className="smtcmp-mcp-empty-state">
+                  <Package size={18} />
+                  <div>
+                    <div className="smtcmp-mcp-empty-state-title">
+                      No MCP servers configured
+                    </div>
+                    <div className="smtcmp-mcp-empty-state-desc">
+                      Add a server to expose external tools inside chat.
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {builtInTools.length > 0 && (
-            <div className="smtcmp-settings-sub-section">
-              <div className="smtcmp-settings-sub-header-container">
-                <div className="smtcmp-settings-sub-header">
-                  Built-in Vault Tools
+            <div className="smtcmp-mcp-panel smtcmp-mcp-panel--builtin">
+              <div className="smtcmp-mcp-panel-header">
+                <div>
+                  <div className="smtcmp-mcp-panel-title">
+                    Built-in Vault Tools
+                  </div>
+                  <div className="smtcmp-mcp-panel-desc">
+                    Native tools for reading and editing files in the current
+                    vault.
+                  </div>
+                </div>
+                <div className="smtcmp-mcp-panel-badge">
+                  <FolderOpen size={14} />
+                  <span>Built-in</span>
                 </div>
               </div>
-              <div className="smtcmp-settings-desc">
-                These are bundled with Smart Composer and are separate from
-                user-installed MCP servers.
-              </div>
-              <div className="smtcmp-server-tools-container smtcmp-server-tools-container--builtin">
+              <div className="smtcmp-mcp-tool-list smtcmp-mcp-tool-list--builtin">
                 {builtInTools.map((tool) => (
                   <BuiltInMcpToolComponent key={tool.name} tool={tool} />
                 ))}
@@ -186,18 +244,40 @@ function McpServerComponent({
 
   return (
     <div className="smtcmp-mcp-server">
-      <div className="smtcmp-mcp-server-row">
-        <div className="smtcmp-mcp-server-name">{server.name}</div>
-        <div className="smtcmp-mcp-server-status">
-          <McpServerStatusBadge status={server.status} />
+      <div className="smtcmp-mcp-server-row" onClick={() => setIsOpen(!isOpen)}>
+        <div className="smtcmp-mcp-server-primary">
+          <div className="smtcmp-mcp-server-name-row">
+            <div className="smtcmp-mcp-server-name">{server.name}</div>
+            <McpServerStatusBadge status={server.status} />
+          </div>
+          <div className="smtcmp-mcp-server-meta-row">
+            <span className="smtcmp-mcp-server-meta-pill">
+              {server.config.enabled ? 'Enabled' : 'Disabled'}
+            </span>
+            <span className="smtcmp-mcp-server-meta-text">
+              {server.status === McpServerStatus.Connected
+                ? `${server.tools.length} tools available`
+                : server.status === McpServerStatus.Error
+                  ? 'Connection error'
+                  : server.status === McpServerStatus.Connecting
+                    ? 'Connecting to server'
+                    : 'Not connected'}
+            </span>
+          </div>
         </div>
-        <div className="smtcmp-mcp-server-toggle">
+        <div
+          className="smtcmp-mcp-server-toggle"
+          onClick={(event) => event.stopPropagation()}
+        >
           <ObsidianToggle
             value={server.config.enabled}
             onChange={handleToggleEnabled}
           />
         </div>
-        <div className="smtcmp-mcp-server-actions">
+        <div
+          className="smtcmp-mcp-server-actions"
+          onClick={(event) => event.stopPropagation()}
+        >
           <button
             onClick={handleEdit}
             className="clickable-icon"
@@ -238,8 +318,10 @@ function ExpandedServerInfo({ server }: { server: McpServerState }) {
     <div className="smtcmp-server-expanded-info">
       {server.status === McpServerStatus.Connected && (
         <div>
-          <div className="smtcmp-server-expanded-info-header">Tools</div>
-          <div className="smtcmp-server-tools-container">
+          <div className="smtcmp-server-expanded-info-header">
+            Available Tools
+          </div>
+          <div className="smtcmp-mcp-tool-list">
             {server.tools.map((tool) => (
               <McpToolComponent key={tool.name} tool={tool} server={server} />
             ))}
@@ -352,7 +434,12 @@ function McpToolComponent({
   return (
     <div className="smtcmp-mcp-tool">
       <div className="smtcmp-mcp-tool-info">
-        <div className="smtcmp-mcp-tool-name">{tool.name}</div>
+        <div className="smtcmp-mcp-tool-title-row">
+          <div className="smtcmp-mcp-tool-name">{tool.name}</div>
+          <div className="smtcmp-mcp-tool-pill smtcmp-mcp-tool-pill--external">
+            External
+          </div>
+        </div>
         <div className="smtcmp-mcp-tool-description">{tool.description}</div>
       </div>
       <div className="smtcmp-mcp-tool-toggle">
@@ -407,6 +494,9 @@ function BuiltInMcpToolComponent({ tool }: { tool: McpTool }) {
               </Tooltip.Portal>
             </Tooltip.Root>
           </Tooltip.Provider>
+        </div>
+        <div className="smtcmp-mcp-tool-description">
+          Native vault tool bundled with Smart Composer.
         </div>
       </div>
     </div>
