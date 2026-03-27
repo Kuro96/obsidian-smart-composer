@@ -1,4 +1,6 @@
+import * as Tooltip from '@radix-ui/react-tooltip'
 import {
+  BadgeInfo,
   Check,
   ChevronDown,
   ChevronUp,
@@ -35,12 +37,14 @@ type McpSectionProps = {
 export function McpSection({ app, plugin }: McpSectionProps) {
   const [mcpManager, setMcpManager] = useState<McpManager | null>(null)
   const [mcpServers, setMcpServers] = useState<McpServerState[]>([])
+  const [builtInTools, setBuiltInTools] = useState<McpTool[]>([])
 
   useEffect(() => {
     const initMCPManager = async () => {
       const mcpManager = await plugin.getMcpManager()
       setMcpManager(mcpManager)
       setMcpServers(mcpManager.getServers())
+      setBuiltInTools(mcpManager.listBuiltInTools())
     }
     initMCPManager()
   }, [plugin])
@@ -106,6 +110,25 @@ export function McpSection({ app, plugin }: McpSectionProps) {
               </div>
             )}
           </div>
+
+          {builtInTools.length > 0 && (
+            <div className="smtcmp-settings-sub-section">
+              <div className="smtcmp-settings-sub-header-container">
+                <div className="smtcmp-settings-sub-header">
+                  Built-in Vault Tools
+                </div>
+              </div>
+              <div className="smtcmp-settings-desc">
+                These are bundled with Smart Composer and are separate from
+                user-installed MCP servers.
+              </div>
+              <div className="smtcmp-server-tools-container smtcmp-server-tools-container--builtin">
+                {builtInTools.map((tool) => (
+                  <BuiltInMcpToolComponent key={tool.name} tool={tool} />
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
@@ -345,6 +368,46 @@ function McpToolComponent({
           value={allowAutoExecution}
           onChange={(value) => handleToggleAutoExecution(value)}
         />
+      </div>
+    </div>
+  )
+}
+
+function BuiltInMcpToolComponent({ tool }: { tool: McpTool }) {
+  return (
+    <div className="smtcmp-mcp-tool smtcmp-mcp-tool--builtin">
+      <div className="smtcmp-mcp-tool-info">
+        <div className="smtcmp-mcp-tool-title-row">
+          <div className="smtcmp-mcp-tool-name">{tool.name}</div>
+          <div className="smtcmp-mcp-tool-pill">
+            <span>Built-in</span>
+          </div>
+          <Tooltip.Provider delayDuration={0}>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <button
+                  type="button"
+                  className="clickable-icon smtcmp-mcp-tool-info-button"
+                  aria-label={`Show details for ${tool.name}`}
+                >
+                  <BadgeInfo size={12} />
+                </button>
+              </Tooltip.Trigger>
+              <Tooltip.Portal>
+                <Tooltip.Content
+                  className="smtcmp-tooltip-content smtcmp-tooltip-content--mcp"
+                  sideOffset={6}
+                >
+                  <div className="smtcmp-mcp-tooltip-title">{tool.name}</div>
+                  <div>{tool.description}</div>
+                  <div className="smtcmp-mcp-tooltip-meta">
+                    Available whenever the global Tools toggle is on.
+                  </div>
+                </Tooltip.Content>
+              </Tooltip.Portal>
+            </Tooltip.Root>
+          </Tooltip.Provider>
+        </div>
       </div>
     </div>
   )

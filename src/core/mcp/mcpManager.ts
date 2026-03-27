@@ -331,6 +331,10 @@ export class McpManager {
     return [...availableTools, skill]
   }
 
+  public listBuiltInTools(): McpTool[] {
+    return this.getVaultTools()
+  }
+
   public async getSkillPromptSection(): Promise<string> {
     return this.skillManager.getPromptSection()
   }
