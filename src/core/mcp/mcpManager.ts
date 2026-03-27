@@ -1,5 +1,6 @@
 import isEqual from 'lodash.isequal'
-import { Platform } from 'obsidian'
+import { App, Platform } from 'obsidian'
+import * as path from 'path'
 
 import { SmartComposerSettings } from '../../settings/schema/setting.types'
 import {
@@ -20,13 +21,20 @@ import {
   parseToolName,
   validateServerName,
 } from './tool-name-utils'
+import { SkillManager } from '../skill/skillManager'
 
 export class McpManager {
   static readonly TOOL_NAME_DELIMITER = '__' // Delimiter for tool name construction (serverName__toolName)
+  static readonly VAULT_LIST_TOOL = 'vault_list'
+  static readonly VAULT_READ_TOOL = 'vault_read'
+  static readonly VAULT_WRITE_TOOL = 'vault_write'
+  static readonly VAULT_EDIT_TOOL = 'vault_edit'
+  static readonly VAULT_MKDIR_TOOL = 'vault_mkdir'
 
   public readonly disabled = !Platform.isDesktop // MCP should be disabled on mobile since it doesn't support node.js
 
   private settings: SmartComposerSettings
+  private app: App
   private unsubscribeFromSettings: () => void
   private defaultEnv: Record<string, string>
 
@@ -36,19 +44,41 @@ export class McpManager {
   private subscribers = new Set<(servers: McpServerState[]) => void>()
 
   private availableToolsCache: McpTool[] | null = null
+  private skillManager: SkillManager
 
   constructor({
+    app,
     settings,
     registerSettingsListener,
   }: {
+    app: App
     settings: SmartComposerSettings
     registerSettingsListener: (
       listener: (settings: SmartComposerSettings) => void,
     ) => () => void
   }) {
+    this.app = app
     this.settings = settings
     this.unsubscribeFromSettings = registerSettingsListener((newSettings) => {
       this.handleSettingsUpdate(newSettings)
+    })
+    this.skillManager = new SkillManager({
+      getSettings: () => this.settings,
+      getVaultRoot: () => {
+        const adapter = this.app.vault.adapter as {
+          basePath?: string
+          getBasePath?: () => string
+        }
+        return adapter.basePath ?? adapter.getBasePath?.()
+      },
+      getVault: () => this.app.vault,
+      getVaultAdapter: () =>
+        this.app.vault.adapter as {
+          list: (
+            path: string,
+          ) => Promise<{ files: string[]; folders: string[] }>
+          read: (path: string) => Promise<string>
+        },
     })
   }
 
@@ -252,13 +282,19 @@ export class McpManager {
     }
   }
 
-  public async listAvailableTools(): Promise<McpTool[]> {
+  public async listAvailableTools(opts?: {
+    enableSkill?: boolean
+  }): Promise<McpTool[]> {
     if (this.disabled) {
       return []
     }
 
     if (this.availableToolsCache) {
-      return this.availableToolsCache
+      if (opts?.enableSkill === false) {
+        return [...this.availableToolsCache]
+      }
+      const skill = await this.getSkillTool()
+      return [...this.availableToolsCache, skill]
     }
 
     const availableTools = (
@@ -285,8 +321,25 @@ export class McpManager {
       )
     ).flat()
 
+    availableTools.push(...this.getVaultTools())
+
     this.availableToolsCache = [...availableTools]
-    return availableTools
+    if (opts?.enableSkill === false) {
+      return availableTools
+    }
+    const skill = await this.getSkillTool()
+    return [...availableTools, skill]
+  }
+
+  public async getSkillPromptSection(): Promise<string> {
+    return this.skillManager.getPromptSection()
+  }
+
+  public async listSkills(opts?: { includeDisabled?: boolean }) {
+    if (opts?.includeDisabled) {
+      return this.skillManager.listAll()
+    }
+    return this.skillManager.list()
   }
 
   public allowToolForConversation(
@@ -377,6 +430,44 @@ export class McpManager {
     }
 
     try {
+      if (this.isVaultTool(name)) {
+        const parsedArgs: Record<string, unknown> | undefined =
+          typeof args === 'string'
+            ? args === ''
+              ? {}
+              : JSON.parse(args)
+            : args
+        const out = await this.callVaultTool(name, parsedArgs)
+        return {
+          status: ToolCallResponseStatus.Success,
+          data: {
+            type: 'text',
+            text: out,
+          },
+        }
+      }
+
+      if (name === SkillManager.TOOL_NAME) {
+        const parsedArgs: Record<string, unknown> | undefined =
+          typeof args === 'string'
+            ? args === ''
+              ? {}
+              : JSON.parse(args)
+            : args
+        const skill = parsedArgs?.name
+        if (typeof skill !== 'string' || skill.trim().length === 0) {
+          throw new Error('Skill tool requires a non-empty "name" argument')
+        }
+        const out = await this.skillManager.execute(skill)
+        return {
+          status: ToolCallResponseStatus.Success,
+          data: {
+            type: 'text',
+            text: out,
+          },
+        }
+      }
+
       const { serverName, toolName } = parseToolName(name)
       const server = this.servers.find((server) => server.name === serverName)
       if (!server) {
@@ -452,5 +543,302 @@ export class McpManager {
       return true
     }
     return false
+  }
+
+  private async getSkillTool(): Promise<McpTool> {
+    const details = await this.skillManager.getToolDescription()
+    return {
+      name: SkillManager.TOOL_NAME,
+      description: details.description,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          name: {
+            type: 'string',
+            description: `The name of the skill from available_skills${details.hint}`,
+          },
+        },
+        required: ['name'],
+      },
+    }
+  }
+
+  private getVaultTools(): McpTool[] {
+    return [
+      {
+        name: McpManager.VAULT_LIST_TOOL,
+        description:
+          'List files and folders under a vault-relative directory. Use this before reading or writing files.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: {
+              type: 'string',
+              description:
+                'Vault-relative directory path to list. Default is vault root.',
+            },
+          },
+          required: [],
+        },
+      },
+      {
+        name: McpManager.VAULT_READ_TOOL,
+        description:
+          'Read a UTF-8 text file from the vault by vault-relative path.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: {
+              type: 'string',
+              description: 'Vault-relative file path to read.',
+            },
+          },
+          required: ['path'],
+        },
+      },
+      {
+        name: McpManager.VAULT_WRITE_TOOL,
+        description:
+          'Write UTF-8 text content to a vault-relative file path (full overwrite). Prefer vault_edit for normal file updates. Use vault_write when vault_edit is not suitable (e.g., near-complete rewrite) or when vault_edit fails.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: {
+              type: 'string',
+              description: 'Vault-relative file path to write.',
+            },
+            content: {
+              type: 'string',
+              description: 'Full UTF-8 text content to write.',
+            },
+            createDirectories: {
+              type: 'boolean',
+              description:
+                'Whether to create missing parent directories. Default true.',
+            },
+          },
+          required: ['path', 'content'],
+        },
+      },
+      {
+        name: McpManager.VAULT_EDIT_TOOL,
+        description:
+          'Edit part of a UTF-8 text file by replacing oldText with newText. This is the preferred tool for file modifications. Use vault_write only when vault_edit is not suitable (e.g., near-complete rewrite) or after vault_edit fails.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: {
+              type: 'string',
+              description: 'Vault-relative file path to edit.',
+            },
+            oldText: {
+              type: 'string',
+              description: 'Exact text snippet to replace.',
+            },
+            newText: {
+              type: 'string',
+              description: 'Replacement text snippet.',
+            },
+            replaceAll: {
+              type: 'boolean',
+              description:
+                'Replace all occurrences when true. Default false (expects exactly one match).',
+            },
+          },
+          required: ['path', 'oldText', 'newText'],
+        },
+      },
+      {
+        name: McpManager.VAULT_MKDIR_TOOL,
+        description:
+          'Create a vault-relative directory path recursively if it does not exist.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: {
+              type: 'string',
+              description: 'Vault-relative directory path to create.',
+            },
+          },
+          required: ['path'],
+        },
+      },
+    ]
+  }
+
+  private isVaultTool(name: string): boolean {
+    return [
+      McpManager.VAULT_LIST_TOOL,
+      McpManager.VAULT_READ_TOOL,
+      McpManager.VAULT_WRITE_TOOL,
+      McpManager.VAULT_EDIT_TOOL,
+      McpManager.VAULT_MKDIR_TOOL,
+    ].includes(name)
+  }
+
+  private async callVaultTool(
+    name: string,
+    args: Record<string, unknown> | undefined,
+  ): Promise<string> {
+    const adapter = this.app.vault.adapter as {
+      list: (path: string) => Promise<{ files: string[]; folders: string[] }>
+      read: (path: string) => Promise<string>
+      write: (path: string, data: string) => Promise<void>
+      mkdir: (path: string) => Promise<void>
+      exists?: (path: string, sensitive?: boolean) => Promise<boolean>
+    }
+
+    if (name === McpManager.VAULT_LIST_TOOL) {
+      const relativePath = this.normalizeVaultPath(
+        typeof args?.path === 'string' ? args.path : '',
+      )
+      const listed = await adapter.list(relativePath)
+      return JSON.stringify(
+        {
+          path: relativePath,
+          folders: listed.folders,
+          files: listed.files,
+        },
+        null,
+        2,
+      )
+    }
+
+    if (name === McpManager.VAULT_READ_TOOL) {
+      const rawPath = args?.path
+      if (typeof rawPath !== 'string' || rawPath.trim().length === 0) {
+        throw new Error('vault_read requires a non-empty "path"')
+      }
+      const relativePath = this.normalizeVaultPath(rawPath)
+      const content = await adapter.read(relativePath)
+      return content
+    }
+
+    if (name === McpManager.VAULT_WRITE_TOOL) {
+      const rawPath = args?.path
+      const content = args?.content
+      if (typeof rawPath !== 'string' || rawPath.trim().length === 0) {
+        throw new Error('vault_write requires a non-empty "path"')
+      }
+      if (typeof content !== 'string') {
+        throw new Error('vault_write requires a string "content"')
+      }
+      const relativePath = this.normalizeVaultPath(rawPath)
+      const createDirectories =
+        typeof args?.createDirectories === 'boolean'
+          ? args.createDirectories
+          : true
+
+      if (createDirectories) {
+        await this.ensureParentDirectory(relativePath, adapter)
+      }
+      await adapter.write(relativePath, content)
+      return `Wrote ${content.length} bytes to ${relativePath}`
+    }
+
+    if (name === McpManager.VAULT_EDIT_TOOL) {
+      const rawPath = args?.path
+      const oldText = args?.oldText
+      const newText = args?.newText
+      const replaceAll = args?.replaceAll === true
+
+      if (typeof rawPath !== 'string' || rawPath.trim().length === 0) {
+        throw new Error('vault_edit requires a non-empty "path"')
+      }
+      if (typeof oldText !== 'string' || oldText.length === 0) {
+        throw new Error('vault_edit requires a non-empty string "oldText"')
+      }
+      if (typeof newText !== 'string') {
+        throw new Error('vault_edit requires a string "newText"')
+      }
+
+      const relativePath = this.normalizeVaultPath(rawPath)
+      const original = await adapter.read(relativePath)
+      const occurrences = original.split(oldText).length - 1
+
+      if (occurrences === 0) {
+        throw new Error(`vault_edit could not find oldText in ${relativePath}`)
+      }
+      if (!replaceAll && occurrences !== 1) {
+        throw new Error(
+          `vault_edit found ${occurrences} matches; set replaceAll=true or provide a more specific oldText`,
+        )
+      }
+
+      const next = replaceAll
+        ? original.split(oldText).join(newText)
+        : original.replace(oldText, newText)
+      await adapter.write(relativePath, next)
+      return `Edited ${relativePath}; replaced ${replaceAll ? occurrences : 1} occurrence(s)`
+    }
+
+    if (name === McpManager.VAULT_MKDIR_TOOL) {
+      const rawPath = args?.path
+      if (typeof rawPath !== 'string' || rawPath.trim().length === 0) {
+        throw new Error('vault_mkdir requires a non-empty "path"')
+      }
+      const relativePath = this.normalizeVaultPath(rawPath)
+      await this.mkdirRecursive(relativePath, adapter)
+      return `Created directory ${relativePath}`
+    }
+
+    throw new Error(`Unsupported vault tool: ${name}`)
+  }
+
+  private normalizeVaultPath(input: string): string {
+    const normalized = input.trim().replace(/\\/g, '/').replace(/^\.\//, '')
+    if (normalized.length === 0) {
+      return ''
+    }
+    if (normalized.startsWith('/')) {
+      throw new Error(
+        'Vault path must be relative, absolute paths are not allowed',
+      )
+    }
+    const parsed = path.posix.normalize(normalized)
+    if (
+      parsed === '..' ||
+      parsed.startsWith('../') ||
+      parsed.includes('/../')
+    ) {
+      throw new Error('Vault path cannot escape vault root')
+    }
+    return parsed
+  }
+
+  private async ensureParentDirectory(
+    filePath: string,
+    adapter: {
+      mkdir: (path: string) => Promise<void>
+      exists?: (path: string, sensitive?: boolean) => Promise<boolean>
+    },
+  ) {
+    const parent = path.posix.dirname(filePath)
+    if (!parent || parent === '.') {
+      return
+    }
+    await this.mkdirRecursive(parent, adapter)
+  }
+
+  private async mkdirRecursive(
+    dirPath: string,
+    adapter: {
+      mkdir: (path: string) => Promise<void>
+      exists?: (path: string, sensitive?: boolean) => Promise<boolean>
+    },
+  ) {
+    const parts = dirPath.split('/').filter(Boolean)
+    let cursor = ''
+    for (const part of parts) {
+      cursor = cursor.length === 0 ? part : `${cursor}/${part}`
+      const exists = adapter.exists ? await adapter.exists(cursor) : false
+      if (!exists) {
+        await adapter.mkdir(cursor).catch((error: Error) => {
+          if (!`${error?.message ?? ''}`.includes('already exists')) {
+            throw error
+          }
+        })
+      }
+    }
   }
 }

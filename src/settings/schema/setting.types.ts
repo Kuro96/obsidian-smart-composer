@@ -23,6 +23,21 @@ const ragOptionsSchema = z.object({
   includePatterns: z.array(z.string()).catch([]),
 })
 
+const skillOptionsSchema = z.object({
+  paths: z.array(z.string()).catch([]),
+  urls: z.array(z.string()).catch([]),
+  options: z
+    .record(
+      z.string(),
+      z
+        .object({
+          disabled: z.boolean().optional(),
+        })
+        .catch({}),
+    )
+    .catch({}),
+})
+
 /**
  * Settings
  */
@@ -75,16 +90,25 @@ export const smartComposerSettingsSchema = z.object({
       servers: [],
     }),
 
+  // Skill configuration
+  skills: skillOptionsSchema.catch({
+    paths: [],
+    urls: [],
+    options: {},
+  }),
+
   // Chat options
   chatOptions: z
     .object({
-      includeCurrentFileContent: z.boolean(),
-      enableTools: z.boolean(),
-      maxAutoIterations: z.number(),
+      includeCurrentFileContent: z.boolean().catch(true),
+      enableTools: z.boolean().catch(true),
+      enableSkills: z.boolean().catch(true),
+      maxAutoIterations: z.number().catch(1),
     })
     .catch({
       includeCurrentFileContent: true,
       enableTools: true,
+      enableSkills: true,
       maxAutoIterations: 1,
     }),
 })

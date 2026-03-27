@@ -97,8 +97,8 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
     chatList,
   } = useChatHistory()
   const promptGenerator = useMemo(() => {
-    return new PromptGenerator(getRAGEngine, app, settings)
-  }, [getRAGEngine, app, settings])
+    return new PromptGenerator(getRAGEngine, app, settings, getMcpManager)
+  }, [getRAGEngine, app, settings, getMcpManager])
 
   const [inputMessage, setInputMessage] = useState<ChatUserMessage>(() => {
     const newMessage = getNewInputMessage(app)

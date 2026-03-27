@@ -38,10 +38,20 @@ export function useAutoScroll({ scrollContainerRef }: UseAutoScrollProps) {
   const scrollToBottom = useCallback(() => {
     if (scrollContainerRef.current) {
       const scrollContainer = scrollContainerRef.current
-      if (scrollContainer.scrollTop !== scrollContainer.scrollHeight) {
+
+      lastProgrammaticScrollRef.current = Date.now()
+      scrollContainer.scrollTop = scrollContainer.scrollHeight
+
+      // Some content (like approval actions) can update layout in the next frame.
+      // Run a second pass to avoid ending up a few pixels above the true bottom.
+      requestAnimationFrame(() => {
+        if (!scrollContainerRef.current) {
+          return
+        }
         lastProgrammaticScrollRef.current = Date.now()
-        scrollContainer.scrollTop = scrollContainer.scrollHeight
-      }
+        scrollContainerRef.current.scrollTop =
+          scrollContainerRef.current.scrollHeight
+      })
     }
   }, [scrollContainerRef])
 

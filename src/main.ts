@@ -296,6 +296,7 @@ ${validationResult.error.issues.map((v) => v.message).join('\n')}`)
 
     try {
       this.mcpManager = new McpManager({
+        app: this.app,
         settings: this.settings,
         registerSettingsListener: (
           listener: (settings: SmartComposerSettings) => void,

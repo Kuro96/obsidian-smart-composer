@@ -117,6 +117,24 @@ export function ChatSection() {
       </ObsidianSetting>
 
       <ObsidianSetting
+        name="Enable skills"
+        desc="Allow the AI to use the built-in skill tool."
+      >
+        <ObsidianToggle
+          value={settings.chatOptions.enableSkills}
+          onChange={async (value) => {
+            await setSettings({
+              ...settings,
+              chatOptions: {
+                ...settings.chatOptions,
+                enableSkills: value,
+              },
+            })
+          }}
+        />
+      </ObsidianSetting>
+
+      <ObsidianSetting
         name="Max auto tool requests"
         desc="Maximum number of consecutive tool calls that can be made automatically without user confirmation. Higher values can significantly increase costs as each tool call consumes additional tokens."
       >

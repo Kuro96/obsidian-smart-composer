@@ -39,9 +39,16 @@ describe('parseSmartComposerSettings', () => {
         servers: [],
       },
 
+      skills: {
+        paths: [],
+        urls: [],
+        options: {},
+      },
+
       chatOptions: {
         includeCurrentFileContent: true,
         enableTools: true,
+        enableSkills: true,
         maxAutoIterations: 1,
       },
     })

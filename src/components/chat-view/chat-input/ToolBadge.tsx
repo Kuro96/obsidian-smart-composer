@@ -41,7 +41,9 @@ export default function ToolBadge() {
       const mcpManager = await getMcpManager()
       setMcpManager(mcpManager)
 
-      const tools = await mcpManager.listAvailableTools()
+      const tools = await mcpManager.listAvailableTools({
+        enableSkill: false,
+      })
       setToolCount(tools.length)
     }
     initMCPManager()
@@ -51,7 +53,9 @@ export default function ToolBadge() {
     if (mcpManager) {
       const unsubscribe = mcpManager.subscribeServersChange(
         async (_servers) => {
-          const tools = await mcpManager.listAvailableTools()
+          const tools = await mcpManager.listAvailableTools({
+            enableSkill: false,
+          })
           setToolCount(tools.length)
         },
       )

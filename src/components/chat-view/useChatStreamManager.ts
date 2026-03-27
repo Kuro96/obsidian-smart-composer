@@ -114,6 +114,7 @@ export function useChatStreamManager({
           messages: chatMessages,
           conversationId,
           enableTools: settings.chatOptions.enableTools,
+          enableSkills: settings.chatOptions.enableSkills,
           maxAutoIterations: settings.chatOptions.maxAutoIterations,
           promptGenerator,
           mcpManager,

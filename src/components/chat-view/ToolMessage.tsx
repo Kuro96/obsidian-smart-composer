@@ -120,6 +120,7 @@ function ToolCallItem({
       throw error
     }
   }, [request.name])
+  const canAutoAllow = !!serverName
   const parameters = useMemo(() => {
     if (!request.arguments) {
       return 'No parameters'
@@ -183,14 +184,18 @@ function ToolCallItem({
                   setIsOpen(false)
                 }}
                 menuOptions={[
-                  {
-                    label: 'Always allow this tool',
-                    onClick: () => {
-                      handleToolCall()
-                      handleAllowAutoExecution()
-                      setIsOpen(false)
-                    },
-                  },
+                  ...(canAutoAllow
+                    ? [
+                        {
+                          label: 'Always allow this tool',
+                          onClick: () => {
+                            handleToolCall()
+                            handleAllowAutoExecution()
+                            setIsOpen(false)
+                          },
+                        },
+                      ]
+                    : []),
                   {
                     label: 'Allow for this chat',
                     onClick: () => {

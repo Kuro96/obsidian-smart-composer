@@ -30,21 +30,25 @@ import {
 } from '../obsidian'
 
 import { YoutubeTranscript, isYoutubeUrl } from './youtube-transcript'
+import { McpManager } from '../../core/mcp/mcpManager'
 
 export class PromptGenerator {
   private getRagEngine: () => Promise<RAGEngine>
   private app: App
   private settings: SmartComposerSettings
+  private getMcpManager?: () => Promise<McpManager>
   private MAX_CONTEXT_MESSAGES = 20
 
   constructor(
     getRagEngine: () => Promise<RAGEngine>,
     app: App,
     settings: SmartComposerSettings,
+    getMcpManager?: () => Promise<McpManager>,
   ) {
     this.getRagEngine = getRagEngine
     this.app = app
     this.settings = settings
+    this.getMcpManager = getMcpManager
   }
 
   public async generateRequestMessages({
@@ -91,6 +95,7 @@ export class PromptGenerator {
     const systemMessage = this.getSystemMessage(shouldUseRAG)
 
     const customInstructionMessage = this.getCustomInstructionMessage()
+    const skillMessage = await this.getSkillMessage()
 
     const currentFile = lastUserMessage.mentionables.find(
       (m) => m.type === 'current-file',
@@ -103,6 +108,7 @@ export class PromptGenerator {
     const requestMessages: RequestMessage[] = [
       systemMessage,
       ...(customInstructionMessage ? [customInstructionMessage] : []),
+      ...(skillMessage ? [skillMessage] : []),
       ...(currentFileMessage ? [currentFileMessage] : []),
       ...this.getChatHistoryMessages({ messages: compiledMessages }),
       ...(shouldUseRAG && this.getModelPromptLevel() == PromptLevel.Default
@@ -497,6 +503,25 @@ ${
 <custom_instructions>
 ${customInstruction}
 </custom_instructions>`,
+    }
+  }
+
+  private async getSkillMessage(): Promise<RequestMessage | null> {
+    if (
+      !this.settings.chatOptions.enableTools ||
+      !this.settings.chatOptions.enableSkills ||
+      !this.getMcpManager
+    ) {
+      return null
+    }
+    const mcpManager = await this.getMcpManager()
+    if (mcpManager.disabled) {
+      return null
+    }
+    const section = await mcpManager.getSkillPromptSection()
+    return {
+      role: 'system',
+      content: section,
     }
   }
 
