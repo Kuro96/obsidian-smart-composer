@@ -1,10 +1,10 @@
 import { Settings, Trash2 } from 'lucide-react'
 import { App, Notice } from 'obsidian'
-import { ObsidianToggle } from 'src/components/common/ObsidianToggle'
 
 import { DEFAULT_CHAT_MODELS } from '../../../../constants'
 import { useSettings } from '../../../../contexts/settings-context'
 import SmartComposerPlugin from '../../../../main'
+import { ObsidianToggle } from '../../../common/ObsidianToggle'
 import { ConfirmModal } from '../../../modals/ConfirmModal'
 import { AddChatModelModal } from '../../modals/AddChatModelModal'
 
