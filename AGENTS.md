@@ -1,0 +1,1 @@
+- After completing each round of work in this project, run `npm run build` and report the result.
