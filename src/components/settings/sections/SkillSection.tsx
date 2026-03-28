@@ -1,5 +1,6 @@
+import { PanelRight } from 'lucide-react'
 import { App } from 'obsidian'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { useSettings } from '../../../contexts/settings-context'
 import SmartComposerPlugin from '../../../main'
@@ -21,6 +22,9 @@ export function SkillSection({ plugin }: SkillSectionProps) {
   const { settings, setSettings } = useSettings()
   const [skills, setSkills] = useState<SkillItem[]>([])
   const [refreshing, setRefreshing] = useState(false)
+  const [selectedSkillName, setSelectedSkillName] = useState<string | null>(
+    null,
+  )
 
   const loadSkills = useCallback(async () => {
     setRefreshing(true)
@@ -44,66 +48,152 @@ export function SkillSection({ plugin }: SkillSectionProps) {
     void loadSkills()
   }, [loadSkills, settings.skills.paths, settings.skills.urls])
 
+  useEffect(() => {
+    if (skills.length === 0) {
+      setSelectedSkillName(null)
+      return
+    }
+
+    const hasSelectedSkill = skills.some(
+      (skill) => skill.name === selectedSkillName,
+    )
+    if (!hasSelectedSkill) {
+      setSelectedSkillName(skills[0].name)
+    }
+  }, [skills, selectedSkillName])
+
+  const enabledSkillCount = useMemo(
+    () =>
+      skills.filter(
+        (skill) => !(settings.skills.options[skill.name]?.disabled ?? false),
+      ).length,
+    [settings.skills.options, skills],
+  )
+
+  const selectedSkill =
+    skills.find((skill) => skill.name === selectedSkillName) ??
+    skills[0] ??
+    null
+
+  const handleToggleSkill = async (skillName: string, value: boolean) => {
+    await setSettings({
+      ...settings,
+      skills: {
+        ...settings.skills,
+        options: {
+          ...settings.skills.options,
+          [skillName]: {
+            ...settings.skills.options[skillName],
+            disabled: !value,
+          },
+        },
+      },
+    })
+  }
+
   return (
-    <div className="smtcmp-settings-section">
-      <div className="smtcmp-settings-sub-header-container">
-        <div className="smtcmp-settings-header">Skills</div>
-        <ObsidianButton
-          text={refreshing ? 'Refreshing...' : 'Refresh'}
-          disabled={refreshing}
-          onClick={() => {
-            void loadSkills()
-          }}
-        />
-      </div>
-      <div className="smtcmp-settings-desc smtcmp-settings-callout">
-        Configure which discovered skills are enabled for tool calling.
+    <div className="smtcmp-settings-section smtcmp-mcp-modal-shell">
+      <div className="smtcmp-modal-summary-row">
+        <span>Skills {skills.length}</span>
+        <span>Enabled {enabledSkillCount}</span>
+        <span>
+          Skill tool {settings.chatOptions.enableSkills ? 'On' : 'Off'}
+        </span>
+        <span>{refreshing ? 'Syncing' : 'Ready'}</span>
       </div>
 
-      {skills.length === 0 ? (
-        <div className="smtcmp-mcp-servers-empty">No skills found</div>
-      ) : (
-        <div className="smtcmp-server-tools-container">
-          {skills.map((skill) => {
-            const disabled =
-              settings.skills.options[skill.name]?.disabled ?? false
-            return (
-              <div key={skill.name} className="smtcmp-mcp-tool">
-                <div className="smtcmp-mcp-tool-info">
-                  <div className="smtcmp-mcp-tool-name">{skill.name}</div>
-                  <div className="smtcmp-mcp-tool-description">
-                    {skill.description}
-                  </div>
-                  <div className="smtcmp-mcp-tool-description">
-                    {skill.location}
-                  </div>
+      <section className="smtcmp-mcp-panel">
+        <div className="smtcmp-settings-sub-header-container smtcmp-mcp-panel-header">
+          <div>
+            <div className="smtcmp-settings-sub-header">Discovered Skills</div>
+            <div className="smtcmp-settings-desc smtcmp-mcp-panel-desc">
+              Configure which discovered skills are enabled for tool calling.
+            </div>
+          </div>
+          <div className="smtcmp-mcp-panel-header-action">
+            <ObsidianButton
+              text={refreshing ? 'Refreshing...' : 'Refresh'}
+              disabled={refreshing}
+              onClick={() => {
+                void loadSkills()
+              }}
+            />
+          </div>
+        </div>
+
+        {skills.length === 0 ? (
+          <div className="smtcmp-mcp-servers-empty">
+            <div className="smtcmp-mcp-servers-empty-title">
+              No skills found
+            </div>
+            <div className="smtcmp-settings-desc">
+              Add skill paths or URLs in settings, then refresh this library.
+            </div>
+          </div>
+        ) : (
+          <div className="smtcmp-mcp-tool-workbench">
+            <div className="smtcmp-mcp-tool-table">
+              <div className="smtcmp-mcp-tool-table-header smtcmp-mcp-tool-table-header--single">
+                <div>Skill</div>
+              </div>
+              {skills.map((skill) => {
+                return (
+                  <button
+                    key={skill.name}
+                    type="button"
+                    className={`smtcmp-mcp-tool-row-button smtcmp-mcp-tool-row-button--single${skill.name === selectedSkill?.name ? ' smtcmp-mcp-tool-row-button--selected' : ''}`}
+                    onClick={() => setSelectedSkillName(skill.name)}
+                  >
+                    <div className="smtcmp-mcp-tool-row-main">
+                      <div className="smtcmp-mcp-tool-name">{skill.name}</div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            {selectedSkill && (
+              <div className="smtcmp-mcp-tool-detail-panel">
+                <div className="smtcmp-mcp-tool-detail-kicker">
+                  <PanelRight size={14} />
+                  <span>Skill Detail</span>
                 </div>
-                <div className="smtcmp-mcp-tool-toggle">
-                  <span className="smtcmp-mcp-tool-toggle-label">Enabled</span>
-                  <ObsidianToggle
-                    value={!disabled}
-                    onChange={async (value) => {
-                      await setSettings({
-                        ...settings,
-                        skills: {
-                          ...settings.skills,
-                          options: {
-                            ...settings.skills.options,
-                            [skill.name]: {
-                              ...settings.skills.options[skill.name],
-                              disabled: !value,
-                            },
-                          },
-                        },
-                      })
-                    }}
-                  />
+                <div className="smtcmp-mcp-tool-detail-title">
+                  {selectedSkill.name}
+                </div>
+                <div className="smtcmp-mcp-tooltip-meta">
+                  {selectedSkill.location}
+                </div>
+                <div className="smtcmp-mcp-tool-detail-controls">
+                  <div className="smtcmp-mcp-tool-control-card">
+                    <div className="smtcmp-mcp-tool-control-copy">
+                      <div className="smtcmp-mcp-tool-control-title">
+                        Enabled
+                      </div>
+                      <div className="smtcmp-mcp-tool-control-desc">
+                        Allows the built-in skill tool to invoke this skill.
+                      </div>
+                    </div>
+                    <div className="smtcmp-mcp-tool-control-toggle">
+                      <ObsidianToggle
+                        value={
+                          !(
+                            settings.skills.options[selectedSkill.name]
+                              ?.disabled ?? false
+                          )
+                        }
+                        onChange={(value) =>
+                          void handleToggleSkill(selectedSkill.name, value)
+                        }
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
-            )
-          })}
-        </div>
-      )}
+            )}
+          </div>
+        )}
+      </section>
     </div>
   )
 }

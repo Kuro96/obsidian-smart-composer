@@ -1,12 +1,11 @@
-import * as Tooltip from '@radix-ui/react-tooltip'
 import {
-  BadgeInfo,
   Check,
   ChevronDown,
   ChevronUp,
   CircleMinus,
   Edit,
   Loader2,
+  PanelRight,
   Trash2,
   X,
 } from 'lucide-react'
@@ -35,9 +34,25 @@ type McpSectionProps = {
 }
 
 export function McpSection({ app, plugin }: McpSectionProps) {
+  const { settings } = useSettings()
   const [mcpManager, setMcpManager] = useState<McpManager | null>(null)
   const [mcpServers, setMcpServers] = useState<McpServerState[]>([])
   const [builtInTools, setBuiltInTools] = useState<McpTool[]>([])
+
+  const connectedServerCount = mcpServers.filter(
+    (server) => server.status === McpServerStatus.Connected,
+  ).length
+  const enabledServerCount = mcpServers.filter(
+    (server) => server.config.enabled,
+  ).length
+  const remoteToolCount = mcpServers.reduce(
+    (count, server) =>
+      server.status === McpServerStatus.Connected
+        ? count + server.tools.length
+        : count,
+    0,
+  )
+  const toolsEnabled = settings.chatOptions.enableTools
 
   useEffect(() => {
     const initMCPManager = async () => {
@@ -61,87 +76,101 @@ export function McpSection({ app, plugin }: McpSectionProps) {
   }, [mcpManager])
 
   return (
-    <div className="smtcmp-settings-section">
-      <div className="smtcmp-settings-header">MCP (Model Context Pool)</div>
-
-      <div className="smtcmp-settings-desc smtcmp-settings-callout">
-        <strong>Warning:</strong> When using tools, the tool response is passed
-        to the language model (LLM). If the tool result contains a large amount
-        of content, this can significantly increase LLM usage and associated
-        costs. Please be mindful when enabling or using tools that may return
-        long outputs.
+    <div className="smtcmp-settings-section smtcmp-mcp-modal-shell">
+      <div className="smtcmp-modal-summary-row">
+        <span>MCP servers {mcpServers.length}</span>
+        <span>Connected {connectedServerCount}</span>
+        <span>Enabled {enabledServerCount}</span>
+        <span>Remote tools {remoteToolCount}</span>
+        <span>Built-in {builtInTools.length}</span>
+        <span>Tools {toolsEnabled ? 'On' : 'Off'}</span>
       </div>
 
       {mcpManager?.disabled ? (
-        <div className="smtcmp-settings-sub-header-container">
+        <div className="smtcmp-mcp-empty-state">
           <div className="smtcmp-settings-sub-header">
             MCP is not supported on mobile devices
           </div>
+          <div className="smtcmp-settings-desc">
+            Open Smart Composer on desktop to manage servers and tool
+            permissions.
+          </div>
         </div>
       ) : (
-        <>
-          <div className="smtcmp-settings-sub-header-container">
-            <div className="smtcmp-settings-sub-header">
-              User-Installed MCP Servers
-            </div>
-            <ObsidianButton
-              text="Add MCP Server"
-              onClick={() => new AddMcpServerModal(app, plugin).open()}
-            />
-          </div>
-
-          <div className="smtcmp-settings-desc">
-            Manage external MCP servers and control which tools can run
-            automatically.
-          </div>
-
-          <div className="smtcmp-mcp-servers-container">
-            <div className="smtcmp-mcp-servers-header">
-              <div>Server</div>
-              <div>Status</div>
-              <div>Enabled</div>
-              <div>Actions</div>
-            </div>
-            {mcpServers.length > 0 ? (
-              mcpServers.map((server) => (
-                <McpServerComponent
-                  key={server.name}
-                  server={server}
-                  app={app}
-                  plugin={plugin}
-                />
-              ))
-            ) : (
-              <div className="smtcmp-mcp-servers-empty">
-                No MCP servers configured
+        <div className="smtcmp-mcp-panel-grid">
+          <section className="smtcmp-mcp-panel smtcmp-mcp-panel--servers">
+            <div className="smtcmp-settings-sub-header-container smtcmp-mcp-panel-header">
+              <div>
+                <div className="smtcmp-settings-sub-header">
+                  User-installed MCP Servers
+                </div>
+                <div className="smtcmp-settings-desc smtcmp-mcp-panel-desc">
+                  Manage external MCP servers and control which tools can run
+                  automatically.
+                </div>
               </div>
-            )}
-          </div>
+              <div className="smtcmp-mcp-panel-header-action">
+                <ObsidianButton
+                  text="Add MCP Server"
+                  onClick={() => new AddMcpServerModal(app, plugin).open()}
+                />
+              </div>
+            </div>
 
-          {builtInTools.length > 0 && (
-            <div className="smtcmp-settings-sub-section">
-              <div className="smtcmp-settings-sub-header-container">
+            <div className="smtcmp-mcp-servers-container">
+              <div className="smtcmp-mcp-servers-header">
+                <div>Server</div>
+                <div>Status</div>
+                <div>Enabled</div>
+                <div>Actions</div>
+              </div>
+              {mcpServers.length > 0 ? (
+                mcpServers.map((server) => (
+                  <McpServerComponent
+                    key={server.name}
+                    server={server}
+                    app={app}
+                    plugin={plugin}
+                  />
+                ))
+              ) : (
+                <div className="smtcmp-mcp-servers-empty">
+                  <div className="smtcmp-mcp-servers-empty-title">
+                    No MCP servers configured
+                  </div>
+                  <div className="smtcmp-settings-desc">
+                    Add a server to expose external tools and configure
+                    auto-execution rules.
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="smtcmp-mcp-panel smtcmp-mcp-panel--builtin">
+            <div className="smtcmp-mcp-panel-header smtcmp-settings-sub-header-container">
+              <div>
                 <div className="smtcmp-settings-sub-header">
                   Built-in Vault Tools
                 </div>
-              </div>
-              <div className="smtcmp-settings-desc">
-                Native vault tools bundled with Smart Composer. They are
-                available whenever the global Tools toggle is on.
-              </div>
-              <div className="smtcmp-mcp-builtin-tools-container">
-                <div className="smtcmp-mcp-builtin-tools-header">
-                  <div>Tool</div>
-                  <div>Source</div>
-                  <div>Details</div>
+                <div className="smtcmp-settings-desc smtcmp-mcp-panel-desc">
+                  Native vault tools bundled with Smart Composer. They are
+                  available whenever the global Tools toggle is on.
                 </div>
-                {builtInTools.map((tool) => (
-                  <BuiltInMcpToolComponent key={tool.name} tool={tool} />
-                ))}
               </div>
             </div>
-          )}
-        </>
+
+            {builtInTools.length > 0 ? (
+              <McpBuiltInWorkbench tools={builtInTools} />
+            ) : (
+              <div className="smtcmp-mcp-servers-empty">
+                <div className="smtcmp-mcp-servers-empty-title">
+                  No built-in tools available
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
       )}
     </div>
   )
@@ -241,6 +270,23 @@ function McpServerComponent({
 }
 
 function ExpandedServerInfo({ server }: { server: McpServerState }) {
+  const [selectedToolName, setSelectedToolName] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (server.status !== McpServerStatus.Connected) {
+      setSelectedToolName(null)
+      return
+    }
+
+    const hasSelectedTool = server.tools.some(
+      (tool) => tool.name === selectedToolName,
+    )
+
+    if (!hasSelectedTool) {
+      setSelectedToolName(server.tools[0]?.name ?? null)
+    }
+  }, [server, selectedToolName])
+
   if (
     server.status === McpServerStatus.Disconnected ||
     server.status === McpServerStatus.Connecting
@@ -253,11 +299,11 @@ function ExpandedServerInfo({ server }: { server: McpServerState }) {
       {server.status === McpServerStatus.Connected && (
         <div>
           <div className="smtcmp-server-expanded-info-header">Tools</div>
-          <div className="smtcmp-server-tools-container">
-            {server.tools.map((tool) => (
-              <McpToolComponent key={tool.name} tool={tool} server={server} />
-            ))}
-          </div>
+          <McpConnectedToolsWorkbench
+            server={server}
+            selectedToolName={selectedToolName}
+            onSelectTool={setSelectedToolName}
+          />
         </div>
       )}
       {server.status === McpServerStatus.Error && (
@@ -306,120 +352,214 @@ function McpServerStatusBadge({ status }: { status: McpServerStatus }) {
   )
 }
 
-function McpToolComponent({
-  tool,
+function McpConnectedToolsWorkbench({
   server,
+  selectedToolName,
+  onSelectTool,
 }: {
-  tool: McpTool
-  server: McpServerState
+  server: Extract<McpServerState, { status: McpServerStatus.Connected }>
+  selectedToolName: string | null
+  onSelectTool: (toolName: string) => void
 }) {
-  const { settings, setSettings } = useSettings()
+  const selectedTool =
+    server.tools.find((tool) => tool.name === selectedToolName) ??
+    server.tools[0] ??
+    null
 
-  const toolOption = server.config.toolOptions[tool.name]
-  const disabled = toolOption?.disabled ?? false
-  const allowAutoExecution = toolOption?.allowAutoExecution ?? false
-
-  const handleToggleEnabled = (enabled: boolean) => {
-    const toolOptions = server.config.toolOptions
-    toolOptions[tool.name] = {
-      disabled: !enabled,
-      allowAutoExecution: allowAutoExecution,
-    }
-    setSettings({
-      ...settings,
-      mcp: {
-        ...settings.mcp,
-        servers: settings.mcp.servers.map((s) =>
-          s.id === server.name
-            ? {
-                ...s,
-                toolOptions: toolOptions,
-              }
-            : s,
-        ),
-      },
-    })
-  }
-
-  const handleToggleAutoExecution = (autoExecution: boolean) => {
-    const toolOptions = { ...server.config.toolOptions }
-    toolOptions[tool.name] = {
-      ...toolOptions[tool.name],
-      allowAutoExecution: autoExecution,
-    }
-    setSettings({
-      ...settings,
-      mcp: {
-        ...settings.mcp,
-        servers: settings.mcp.servers.map((s) =>
-          s.id === server.name
-            ? {
-                ...s,
-                toolOptions: toolOptions,
-              }
-            : s,
-        ),
-      },
-    })
+  if (server.tools.length === 0) {
+    return (
+      <div className="smtcmp-mcp-tools-empty-panel">
+        <div className="smtcmp-mcp-servers-empty-title">No tools exposed</div>
+        <div className="smtcmp-settings-desc">
+          This server is connected, but it has not reported any available tools.
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="smtcmp-mcp-tool">
-      <div className="smtcmp-mcp-tool-info">
-        <div className="smtcmp-mcp-tool-name">{tool.name}</div>
-        <div className="smtcmp-mcp-tool-description">{tool.description}</div>
+    <div className="smtcmp-mcp-tool-workbench">
+      <div className="smtcmp-mcp-tool-table">
+        <div className="smtcmp-mcp-tool-table-header smtcmp-mcp-tool-table-header--single">
+          <div>Tool</div>
+        </div>
+        {server.tools.map((tool) => (
+          <McpConnectedToolRow
+            key={tool.name}
+            tool={tool}
+            selected={tool.name === selectedTool?.name}
+            onSelect={() => onSelectTool(tool.name)}
+          />
+        ))}
       </div>
-      <div className="smtcmp-mcp-tool-toggle">
-        <span className="smtcmp-mcp-tool-toggle-label">Enabled</span>
-        <ObsidianToggle
-          value={!disabled}
-          onChange={(value) => handleToggleEnabled(value)}
+
+      {selectedTool && (
+        <McpToolDetailPanel
+          title={selectedTool.name}
+          meta={`Connected via ${server.name}`}
+          mode="connected"
+          tool={selectedTool}
+          server={server}
         />
-      </div>
-      <div className="smtcmp-mcp-tool-toggle">
-        <span className="smtcmp-mcp-tool-toggle-label">Auto-execute</span>
-        <ObsidianToggle
-          value={allowAutoExecution}
-          onChange={(value) => handleToggleAutoExecution(value)}
-        />
-      </div>
+      )}
     </div>
   )
 }
 
-function BuiltInMcpToolComponent({ tool }: { tool: McpTool }) {
+function McpConnectedToolRow({
+  tool,
+  selected,
+  onSelect,
+}: {
+  tool: McpTool
+  selected: boolean
+  onSelect: () => void
+}) {
   return (
-    <div className="smtcmp-mcp-builtin-tool-row">
-      <div className="smtcmp-mcp-builtin-tool-name">{tool.name}</div>
-      <div className="smtcmp-mcp-builtin-tool-source">
-        <div className="smtcmp-mcp-tool-pill">Built-in</div>
+    <button
+      type="button"
+      className={`smtcmp-mcp-tool-row-button smtcmp-mcp-tool-row-button--single${selected ? ' smtcmp-mcp-tool-row-button--selected' : ''}`}
+      onClick={onSelect}
+    >
+      <div className="smtcmp-mcp-tool-row-main">
+        <div className="smtcmp-mcp-tool-name">{tool.name}</div>
       </div>
-      <div className="smtcmp-mcp-builtin-tool-details">
-        <Tooltip.Provider delayDuration={0}>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <button
-                type="button"
-                className="clickable-icon smtcmp-mcp-tool-info-button"
-                aria-label={`Show details for ${tool.name}`}
-              >
-                <BadgeInfo size={12} />
-              </button>
-            </Tooltip.Trigger>
-            <Tooltip.Portal>
-              <Tooltip.Content
-                className="smtcmp-tooltip-content smtcmp-tooltip-content--mcp"
-                sideOffset={6}
-              >
-                <div className="smtcmp-mcp-tooltip-title">{tool.name}</div>
-                <div>{tool.description}</div>
-                <div className="smtcmp-mcp-tooltip-meta">
-                  Available whenever the global Tools toggle is on.
-                </div>
-              </Tooltip.Content>
-            </Tooltip.Portal>
-          </Tooltip.Root>
-        </Tooltip.Provider>
+    </button>
+  )
+}
+
+function McpBuiltInWorkbench({ tools }: { tools: McpTool[] }) {
+  return (
+    <div className="smtcmp-mcp-tool-table smtcmp-mcp-tool-table--builtin">
+      <div className="smtcmp-mcp-tool-table-header smtcmp-mcp-tool-table-header--builtin">
+        <div>Tool</div>
+      </div>
+      {tools.map((tool) => (
+        <div key={tool.name} className="smtcmp-mcp-builtin-tool-row-button">
+          <div className="smtcmp-mcp-tool-name">{tool.name}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function McpToolDetailPanel({
+  title,
+  meta,
+  mode,
+  tool,
+  server,
+}: {
+  title: string
+  meta: string
+  mode: 'builtin' | 'connected'
+  tool?: McpTool
+  server?: Extract<McpServerState, { status: McpServerStatus.Connected }>
+}) {
+  const { settings, setSettings } = useSettings()
+
+  const handleToggleEnabled = (enabled: boolean) => {
+    if (!tool || !server) return
+
+    const toolOptions = { ...server.config.toolOptions }
+    toolOptions[tool.name] = {
+      disabled: !enabled,
+      allowAutoExecution: toolOptions[tool.name]?.allowAutoExecution ?? false,
+    }
+
+    setSettings({
+      ...settings,
+      mcp: {
+        ...settings.mcp,
+        servers: settings.mcp.servers.map((s) =>
+          s.id === server.name
+            ? {
+                ...s,
+                toolOptions,
+              }
+            : s,
+        ),
+      },
+    })
+  }
+
+  const handleToggleAutoExecution = (allowAutoExecution: boolean) => {
+    if (!tool || !server) return
+
+    const toolOptions = { ...server.config.toolOptions }
+    toolOptions[tool.name] = {
+      ...toolOptions[tool.name],
+      allowAutoExecution,
+    }
+
+    setSettings({
+      ...settings,
+      mcp: {
+        ...settings.mcp,
+        servers: settings.mcp.servers.map((s) =>
+          s.id === server.name
+            ? {
+                ...s,
+                toolOptions,
+              }
+            : s,
+        ),
+      },
+    })
+  }
+
+  return (
+    <div className="smtcmp-mcp-tool-detail-panel">
+      <div className="smtcmp-mcp-tool-detail-kicker">
+        <PanelRight size={14} />
+        <span>
+          {mode === 'connected' ? 'Tool Detail' : 'Vault Tool Detail'}
+        </span>
+      </div>
+      <div className="smtcmp-mcp-tool-detail-title">{title}</div>
+      <div className="smtcmp-mcp-tooltip-meta">{meta}</div>
+
+      {mode === 'connected' && tool && server && (
+        <div className="smtcmp-mcp-tool-detail-controls">
+          <McpToolControlCard
+            title="Enabled"
+            description="Turns this tool on or off for the selected server."
+            value={!(server.config.toolOptions[tool.name]?.disabled ?? false)}
+            onChange={handleToggleEnabled}
+          />
+          <McpToolControlCard
+            title="Auto-execute"
+            description="Allows Smart Composer to run this tool without asking first."
+            value={
+              server.config.toolOptions[tool.name]?.allowAutoExecution ?? false
+            }
+            onChange={handleToggleAutoExecution}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function McpToolControlCard({
+  title,
+  description,
+  value,
+  onChange,
+}: {
+  title: string
+  description: string
+  value: boolean
+  onChange: (value: boolean) => void
+}) {
+  return (
+    <div className="smtcmp-mcp-tool-control-card">
+      <div className="smtcmp-mcp-tool-control-copy">
+        <div className="smtcmp-mcp-tool-control-title">{title}</div>
+        <div className="smtcmp-mcp-tool-control-desc">{description}</div>
+      </div>
+      <div className="smtcmp-mcp-tool-control-toggle">
+        <ObsidianToggle value={value} onChange={onChange} />
       </div>
     </div>
   )
