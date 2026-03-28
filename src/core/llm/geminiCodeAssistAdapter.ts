@@ -32,15 +32,18 @@ import type {
 type GeminiAdapterConfig = {
   endpoint?: string
   fetchFn?: typeof fetch
+  useObsidianRequestUrl?: boolean
 }
 
 export class GeminiCodeAssistAdapter {
   private endpoint: string
   private fetchFn?: typeof fetch
+  private useObsidianRequestUrl: boolean
 
   constructor(config: GeminiAdapterConfig = {}) {
     this.endpoint = config.endpoint ?? GEMINI_CODE_ASSIST_ENDPOINT
     this.fetchFn = config.fetchFn
+    this.useObsidianRequestUrl = config.useObsidianRequestUrl ?? false
   }
 
   async generateResponse(
@@ -60,6 +63,7 @@ export class GeminiCodeAssistAdapter {
         },
         signal: options?.signal,
         fetchFn: this.fetchFn,
+        useObsidianRequestUrl: this.useObsidianRequestUrl,
       })
     const response = codeAssistResponse.response
     // Attach SDK prototype so getter helpers like response.text work on plain JSON.
@@ -89,6 +93,7 @@ export class GeminiCodeAssistAdapter {
       },
       signal: options?.signal,
       fetchFn: this.fetchFn,
+      useObsidianRequestUrl: this.useObsidianRequestUrl,
     })
     const messageId = crypto.randomUUID()
     return this.streamResponseGenerator(stream, request.model, messageId)

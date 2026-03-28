@@ -98,8 +98,7 @@ export function PlanConnectionsSection({
         </div>
         Use a subscription instead of API-key billing. Connected subscriptions
         consume your plan&apos;s included usage (Codex for OpenAI, Claude Code
-        for Anthropic, Gemini Code Assist for Gemini). Subscriptions aren&apos;t
-        supported on mobile environments.
+        for Anthropic, Gemini Code Assist for Gemini).
         <br />
       </div>
 

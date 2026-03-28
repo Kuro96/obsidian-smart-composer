@@ -8,7 +8,7 @@
  * only when running on desktop.
  */
 
-import { Platform } from 'obsidian'
+import { Platform, requestUrl } from 'obsidian'
 
 export type StreamSource = ReadableStream<Uint8Array> | NodeJS.ReadableStream
 type NodeLikeIncomingMessage = NodeJS.ReadableStream & {
@@ -20,6 +20,7 @@ type PostOptions = {
   headers?: Record<string, string>
   signal?: AbortSignal
   fetchFn?: typeof fetch
+  useObsidianRequestUrl?: boolean
 }
 
 export async function postJson<T>(
@@ -29,6 +30,17 @@ export async function postJson<T>(
 ): Promise<T> {
   const { headers, signal, fetchFn } = options
   const payload = JSON.stringify(body)
+
+  if (options.useObsidianRequestUrl) {
+    const response = await requestUrlPost(endpoint, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(headers ?? {}),
+      },
+      signal,
+    })
+    return JSON.parse(response) as T
+  }
 
   if (fetchFn) {
     const response = await fetchFn(endpoint, {
@@ -70,6 +82,14 @@ export async function postFormUrlEncoded<T>(
     ...(headers ?? {}),
   }
 
+  if (options.useObsidianRequestUrl) {
+    const response = await requestUrlPost(endpoint, payload, {
+      headers: formHeaders,
+      signal,
+    })
+    return JSON.parse(response) as T
+  }
+
   if (fetchFn) {
     const response = await fetchFn(endpoint, {
       method: 'POST',
@@ -108,6 +128,17 @@ export async function postStream(
 ): Promise<StreamSource> {
   const { headers, signal, fetchFn } = options
   const payload = JSON.stringify(body)
+
+  if (options.useObsidianRequestUrl) {
+    const response = await requestUrlPost(endpoint, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(headers ?? {}),
+      },
+      signal,
+    })
+    return textToReadableStream(response)
+  }
 
   if (fetchFn) {
     const response = await fetchFn(endpoint, {
@@ -242,6 +273,47 @@ async function getProxyAgent(
     HttpProxyAgent: new (proxy: string) => RequestAgent
   }
   return new HttpProxyAgent(proxyUrl)
+}
+
+async function requestUrlPost(
+  endpoint: string,
+  body: string,
+  options: {
+    headers: Record<string, string>
+    signal?: AbortSignal
+  },
+): Promise<string> {
+  if (options.signal?.aborted) {
+    throw new Error('Request aborted')
+  }
+
+  const response = await requestUrl({
+    url: endpoint,
+    method: 'POST',
+    headers: options.headers,
+    body,
+    throw: false,
+  })
+
+  if (options.signal?.aborted) {
+    throw new Error('Request aborted')
+  }
+
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`Request failed: ${response.status} ${response.text}`)
+  }
+
+  return response.text
+}
+
+function textToReadableStream(text: string): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder()
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode(text))
+      controller.close()
+    },
+  })
 }
 
 async function getElectronSessionProxyUrl(

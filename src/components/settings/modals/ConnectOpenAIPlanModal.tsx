@@ -11,6 +11,7 @@ import {
   startCodexCallbackServer,
   stopCodexCallbackServer,
 } from '../../../core/llm/codexAuth'
+import { supportsLocalOauthCallbackServer } from '../../../core/llm/transportPolicy'
 import SmartComposerPlugin from '../../../main'
 import { ObsidianButton } from '../../common/ObsidianButton'
 import { ObsidianSetting } from '../../common/ObsidianSetting'
@@ -136,6 +137,14 @@ function ConnectOpenAIPlanModalComponent({
     }
 
     window.open(effectiveAuthorizeUrl, '_blank')
+
+    if (!supportsLocalOauthCallbackServer()) {
+      setAutoError(
+        'On mobile, Smart Composer does not start a local callback server. Finish login in your browser, then paste the full redirect URL below and click "Connect with URL".',
+      )
+      return
+    }
+
     setIsWaitingForCallback(true)
 
     try {

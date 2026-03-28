@@ -29,15 +29,18 @@ const DEFAULT_MAX_TOKENS = 8192
 type ClaudeCodeAdapterConfig = {
   endpoint?: string
   fetchFn?: typeof fetch
+  useObsidianRequestUrl?: boolean
 }
 
 export class ClaudeCodeMessageAdapter {
   private endpoint: string
   private fetchFn?: typeof fetch
+  private useObsidianRequestUrl: boolean
 
   constructor(config: ClaudeCodeAdapterConfig = {}) {
     this.endpoint = config.endpoint ?? CLAUDE_CODE_MESSAGES_ENDPOINT
     this.fetchFn = config.fetchFn
+    this.useObsidianRequestUrl = config.useObsidianRequestUrl ?? false
   }
 
   async generateResponse(
@@ -59,6 +62,7 @@ export class ClaudeCodeMessageAdapter {
         headers: headers,
         signal: options?.signal,
         fetchFn: this.fetchFn,
+        useObsidianRequestUrl: this.useObsidianRequestUrl,
       },
     )
     return AnthropicProvider.parseNonStreamingResponse(payload)
@@ -80,6 +84,7 @@ export class ClaudeCodeMessageAdapter {
       headers: headers,
       signal: options?.signal,
       fetchFn: this.fetchFn,
+      useObsidianRequestUrl: this.useObsidianRequestUrl,
     })
     return AnthropicProvider.streamResponseGenerator(
       parseJsonSseStream<MessageStreamEvent>(stream),

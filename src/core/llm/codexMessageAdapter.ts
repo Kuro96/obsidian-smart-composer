@@ -31,15 +31,18 @@ import { parseJsonSseStream } from '../../utils/llm/sse'
 type CodexAdapterConfig = {
   endpoint?: string
   fetchFn?: typeof fetch
+  useObsidianRequestUrl?: boolean
 }
 
 export class CodexMessageAdapter {
   private endpoint: string
   private fetchFn?: typeof fetch
+  private useObsidianRequestUrl: boolean
 
   constructor(config: CodexAdapterConfig = {}) {
     this.endpoint = config.endpoint ?? CODEX_RESPONSES_ENDPOINT
     this.fetchFn = config.fetchFn
+    this.useObsidianRequestUrl = config.useObsidianRequestUrl ?? false
   }
 
   async generateResponse(
@@ -53,6 +56,7 @@ export class CodexMessageAdapter {
       headers,
       signal: options?.signal,
       fetchFn: this.fetchFn,
+      useObsidianRequestUrl: this.useObsidianRequestUrl,
     })
 
     let summaryText = ''
@@ -129,6 +133,7 @@ export class CodexMessageAdapter {
       headers,
       signal: options?.signal,
       fetchFn: this.fetchFn,
+      useObsidianRequestUrl: this.useObsidianRequestUrl,
     })
     return this.streamResponseGenerator(stream, request.model)
   }

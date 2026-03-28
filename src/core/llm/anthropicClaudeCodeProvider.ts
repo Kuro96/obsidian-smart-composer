@@ -21,6 +21,10 @@ import {
   LLMAPIKeyInvalidException,
   LLMAPIKeyNotSetException,
 } from './exception'
+import {
+  getBrowserCompatibleFetchFn,
+  shouldUseObsidianRequestUrlNetworkStack,
+} from './transportPolicy'
 
 export class AnthropicClaudeCodeProvider extends BaseLLMProvider<
   Extract<LLMProvider, { type: 'anthropic-plan' }>
@@ -39,7 +43,10 @@ export class AnthropicClaudeCodeProvider extends BaseLLMProvider<
     ) => void | Promise<void>,
   ) {
     super(provider)
-    this.adapter = new ClaudeCodeMessageAdapter()
+    this.adapter = new ClaudeCodeMessageAdapter({
+      fetchFn: getBrowserCompatibleFetchFn(),
+      useObsidianRequestUrl: shouldUseObsidianRequestUrlNetworkStack(),
+    })
     this.onProviderUpdate = onProviderUpdate
   }
 

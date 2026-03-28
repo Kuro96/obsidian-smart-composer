@@ -21,6 +21,10 @@ import {
   ensureProjectContext,
   invalidateProjectContextCache,
 } from './geminiProject'
+import {
+  getBrowserCompatibleFetchFn,
+  shouldUseObsidianRequestUrlNetworkStack,
+} from './transportPolicy'
 
 export class GeminiPlanProvider extends BaseLLMProvider<
   Extract<LLMProvider, { type: 'gemini-plan' }>
@@ -39,7 +43,10 @@ export class GeminiPlanProvider extends BaseLLMProvider<
     ) => void | Promise<void>,
   ) {
     super(provider)
-    this.adapter = new GeminiCodeAssistAdapter()
+    this.adapter = new GeminiCodeAssistAdapter({
+      fetchFn: getBrowserCompatibleFetchFn(),
+      useObsidianRequestUrl: shouldUseObsidianRequestUrlNetworkStack(),
+    })
     this.onProviderUpdate = onProviderUpdate
   }
 

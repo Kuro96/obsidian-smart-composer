@@ -1,5 +1,3 @@
-import { Platform } from 'obsidian'
-
 import {
   CLAUDE_CODE_AUTHORIZE_BASE_URL,
   CLAUDE_CODE_CLIENT_ID,
@@ -7,6 +5,10 @@ import {
   CLAUDE_CODE_REDIRECT_URI,
 } from '../../constants'
 import { postFormUrlEncoded } from '../../utils/llm/httpTransport'
+import {
+  getBrowserCompatibleFetchFn,
+  shouldUseObsidianRequestUrlNetworkStack,
+} from './transportPolicy'
 
 type ClaudeCodePkceCodes = {
   verifier: string
@@ -95,15 +97,16 @@ function parseAuthorizationCode(
 async function postTokenRequest(
   body: Record<string, string | undefined>,
 ): Promise<ClaudeCodeTokenResponse> {
-  if (!Platform.isDesktop) {
-    throw new Error('Claude Code OAuth is not supported on mobile yet')
-  }
   const payload = Object.fromEntries(
     Object.entries(body).filter(([, value]) => typeof value === 'string'),
   ) as Record<string, string>
   const response = await postFormUrlEncoded<ClaudeCodeTokenResponse>(
     CLAUDE_CODE_OAUTH_TOKEN_ENDPOINT,
     payload,
+    {
+      fetchFn: getBrowserCompatibleFetchFn(),
+      useObsidianRequestUrl: shouldUseObsidianRequestUrlNetworkStack(),
+    },
   )
   return response
 }

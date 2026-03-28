@@ -19,6 +19,10 @@ import {
   LLMAPIKeyInvalidException,
   LLMAPIKeyNotSetException,
 } from './exception'
+import {
+  getBrowserCompatibleFetchFn,
+  shouldUseObsidianRequestUrlNetworkStack,
+} from './transportPolicy'
 
 export class OpenAICodexProvider extends BaseLLMProvider<
   Extract<LLMProvider, { type: 'openai-plan' }>
@@ -37,7 +41,10 @@ export class OpenAICodexProvider extends BaseLLMProvider<
     ) => void | Promise<void>,
   ) {
     super(provider)
-    this.adapter = new CodexMessageAdapter()
+    this.adapter = new CodexMessageAdapter({
+      fetchFn: getBrowserCompatibleFetchFn(),
+      useObsidianRequestUrl: shouldUseObsidianRequestUrlNetworkStack(),
+    })
     this.onProviderUpdate = onProviderUpdate
   }
 

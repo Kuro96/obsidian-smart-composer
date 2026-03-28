@@ -9,6 +9,10 @@ import {
   GEMINI_OAUTH_SCOPES,
 } from '../../constants'
 import { postFormUrlEncoded } from '../../utils/llm/httpTransport'
+import {
+  getBrowserCompatibleFetchFn,
+  shouldUseObsidianRequestUrlNetworkStack,
+} from './transportPolicy'
 
 type GeminiPkceCodes = {
   verifier: string
@@ -88,6 +92,10 @@ export async function exchangeGeminiCodeForTokens(params: {
       client_secret: GEMINI_OAUTH_CLIENT_SECRET,
       code_verifier: params.pkceVerifier,
     },
+    {
+      fetchFn: getBrowserCompatibleFetchFn(),
+      useObsidianRequestUrl: shouldUseObsidianRequestUrlNetworkStack(),
+    },
   )
 
   const email = await fetchGeminiUserEmail(tokens.access_token)
@@ -107,6 +115,10 @@ export async function refreshGeminiAccessToken(
       refresh_token: refreshToken,
       client_id: GEMINI_OAUTH_CLIENT_ID,
       client_secret: GEMINI_OAUTH_CLIENT_SECRET,
+    },
+    {
+      fetchFn: getBrowserCompatibleFetchFn(),
+      useObsidianRequestUrl: shouldUseObsidianRequestUrlNetworkStack(),
     },
   )
 }
