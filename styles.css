@@ -22,6 +22,23 @@
   }
 }
 
+.smtcmp-session-mode-toggle--active {
+  color: var(--color-accent);
+}
+
+.smtcmp-session-readonly-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-2);
+  padding: var(--size-2-2) var(--size-4-2);
+  margin-bottom: var(--size-2-2);
+  background-color: var(--background-modifier-form-field);
+  border: var(--input-border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
 .smtcmp-markdown {
   line-height: var(--line-height-normal);
   font-size: var(--font-ui-small);
@@ -1652,6 +1669,27 @@ button.smtcmp-chat-input-model-select {
     display: flex;
     flex-direction: column;
     gap: var(--size-4-1);
+  }
+}
+
+.smtcmp-toolcall--danger {
+  border-color: var(--color-red);
+}
+
+.smtcmp-toolcall-danger-warning {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-2);
+  padding: var(--size-2-2) var(--size-4-2);
+  margin: 0 var(--size-4-1);
+  background-color: color-mix(in srgb, var(--color-red) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-red) 40%, transparent);
+  border-radius: var(--radius-s);
+  font-size: var(--font-ui-smaller);
+  color: var(--color-red);
+
+  svg {
+    flex-shrink: 0;
   }
 }
 

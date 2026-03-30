@@ -135,6 +135,24 @@ export function ChatSection() {
       </ObsidianSetting>
 
       <ObsidianSetting
+        name="Auto-allow built-in read/write tools"
+        desc="When enabled, built-in tools that write to the vault (vault_write, vault_edit, vault_append, etc.) execute automatically without asking for approval. Danger-zone tools (vault_delete, active_note_delete) always require approval regardless of this setting."
+      >
+        <ObsidianToggle
+          value={settings.chatOptions.defaultAllowBuiltinReadWrite}
+          onChange={async (value) => {
+            await setSettings({
+              ...settings,
+              chatOptions: {
+                ...settings.chatOptions,
+                defaultAllowBuiltinReadWrite: value,
+              },
+            })
+          }}
+        />
+      </ObsidianSetting>
+
+      <ObsidianSetting
         name="Max auto tool requests"
         desc="Maximum number of consecutive tool calls that can be made automatically without user confirmation. Higher values can significantly increase costs as each tool call consumes additional tokens."
       >

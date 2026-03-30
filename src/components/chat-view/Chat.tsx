@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
-import { Book, CircleStop, History, Plus } from 'lucide-react'
+import { Book, CircleStop, History, Lock, LockOpen, Plus } from 'lucide-react'
 import { App, Notice } from 'obsidian'
 import {
   forwardRef,
@@ -31,6 +31,7 @@ import {
   ChatToolMessage,
   ChatUserMessage,
 } from '../../types/chat'
+import { SessionMode } from '../../core/mcp/mcpManager'
 import {
   MentionableBlock,
   MentionableBlockData,
@@ -127,6 +128,8 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
   const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null)
   const [currentConversationId, setCurrentConversationId] =
     useState<string>(uuidv4())
+  const [sessionMode, setSessionMode] = useState<SessionMode>('read-write')
+
   const [queryProgress, setQueryProgress] = useState<QueryProgressState>({
     type: 'idle',
   })
@@ -147,6 +150,7 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
     setChatMessages,
     autoScrollToBottom,
     promptGenerator,
+    sessionMode,
   })
 
   const registerChatUserInputRef = (
@@ -564,6 +568,25 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
         <h1 className="smtcmp-chat-header-title">Chat</h1>
         <div className="smtcmp-chat-header-buttons">
           <button
+            onClick={() =>
+              setSessionMode((prev) =>
+                prev === 'read-only' ? 'read-write' : 'read-only',
+              )
+            }
+            className={`clickable-icon smtcmp-session-mode-toggle ${sessionMode === 'read-only' ? 'smtcmp-session-mode-toggle--active' : ''}`}
+            aria-label={
+              sessionMode === 'read-only'
+                ? 'Read-only mode (click to switch to read/write)'
+                : 'Read/write mode (click to switch to read-only)'
+            }
+          >
+            {sessionMode === 'read-only' ? (
+              <Lock size={18} />
+            ) : (
+              <LockOpen size={18} />
+            )}
+          </button>
+          <button
             onClick={() => handleNewChat()}
             className="clickable-icon"
             aria-label="New Chat"
@@ -607,6 +630,12 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
           </button>
         </div>
       </div>
+      {sessionMode === 'read-only' && (
+        <div className="smtcmp-session-readonly-banner">
+          <Lock size={12} />
+          <span>Read-only — vault writes are disabled</span>
+        </div>
+      )}
       <div className="smtcmp-chat-messages" ref={chatMessagesRef}>
         {groupedChatMessages.map((messageOrGroup, index) =>
           !Array.isArray(messageOrGroup) ? (

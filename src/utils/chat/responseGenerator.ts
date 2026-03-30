@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 
 import { BaseLLMProvider } from '../../core/llm/base'
-import { McpManager } from '../../core/mcp/mcpManager'
+import { McpManager, SessionMode } from '../../core/mcp/mcpManager'
 import { ChatMessage, ChatToolMessage } from '../../types/chat'
 import { ChatModel } from '../../types/chat-model.types'
 import { RequestTool } from '../../types/llm/request'
@@ -27,6 +27,7 @@ export type ResponseGeneratorParams = {
   enableTools: boolean
   enableSkills: boolean
   maxAutoIterations: number
+  sessionMode: SessionMode
   promptGenerator: PromptGenerator
   mcpManager: McpManager
   abortSignal?: AbortSignal
@@ -38,6 +39,7 @@ export class ResponseGenerator {
   private readonly conversationId: string
   private readonly enableTools: boolean
   private readonly enableSkills: boolean
+  private readonly sessionMode: SessionMode
   private readonly promptGenerator: PromptGenerator
   private readonly mcpManager: McpManager
   private readonly abortSignal?: AbortSignal
@@ -53,6 +55,7 @@ export class ResponseGenerator {
     this.conversationId = params.conversationId
     this.enableTools = params.enableTools
     this.enableSkills = params.enableSkills
+    this.sessionMode = params.sessionMode
     this.maxAutoIterations = Math.max(1, params.maxAutoIterations) // Ensure maxAutoIterations is at least 1
     this.receivedMessages = params.messages
     this.promptGenerator = params.promptGenerator
@@ -149,11 +152,13 @@ export class ResponseGenerator {
   }> {
     const requestMessages = await this.promptGenerator.generateRequestMessages({
       messages: [...this.receivedMessages, ...this.responseMessages],
+      sessionMode: this.sessionMode,
     })
 
     const availableTools = this.enableTools
       ? await this.mcpManager.listAvailableTools({
           enableSkill: this.enableSkills,
+          sessionMode: this.sessionMode,
         })
       : []
 

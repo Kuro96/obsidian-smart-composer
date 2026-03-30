@@ -21,7 +21,17 @@ import {
   parseToolName,
   validateServerName,
 } from './tool-name-utils'
+import {
+  BUILTIN_DANGER_ZONE_TOOLS,
+  BUILTIN_READ_ONLY_TOOLS,
+  BUILTIN_READ_WRITE_TOOLS,
+  BuiltinToolTier,
+  getBuiltinToolTier,
+} from './builtin-tool-tiers'
 import { SkillManager } from '../skill/skillManager'
+
+export type SessionMode = 'read-only' | 'read-write'
+export type { BuiltinToolTier }
 
 export class McpManager {
   static readonly TOOL_NAME_DELIMITER = '__' // Delimiter for tool name construction (serverName__toolName)
@@ -44,6 +54,11 @@ export class McpManager {
   static readonly COMMAND_EXECUTE_TOOL = 'command_execute'
   static readonly SEARCH_DATAVIEW_TOOL = 'search_dataview'
   static readonly SEARCH_JSONLOGIC_TOOL = 'search_jsonlogic'
+
+  static readonly READ_ONLY_TOOLS: string[] = BUILTIN_READ_ONLY_TOOLS
+  static readonly READ_WRITE_TOOLS: string[] = BUILTIN_READ_WRITE_TOOLS
+  static readonly DANGER_ZONE_TOOLS: string[] = BUILTIN_DANGER_ZONE_TOOLS
+  static readonly getBuiltinToolTier = getBuiltinToolTier
 
   public readonly disabled = !Platform.isDesktop // MCP should be disabled on mobile since it doesn't support node.js
 
@@ -298,17 +313,24 @@ export class McpManager {
 
   public async listAvailableTools(opts?: {
     enableSkill?: boolean
+    sessionMode?: SessionMode
   }): Promise<McpTool[]> {
     if (this.disabled) {
       return []
     }
 
+    const sessionMode = opts?.sessionMode ?? 'read-write'
+
     if (this.availableToolsCache) {
+      const filtered = this.filterToolsBySessionMode(
+        this.availableToolsCache,
+        sessionMode,
+      )
       if (opts?.enableSkill === false) {
-        return [...this.availableToolsCache]
+        return filtered
       }
       const skill = await this.getSkillTool()
-      return [...this.availableToolsCache, skill]
+      return [...filtered, skill]
     }
 
     const availableTools = (
@@ -338,11 +360,25 @@ export class McpManager {
     availableTools.push(...this.getVaultTools())
 
     this.availableToolsCache = [...availableTools]
+    const filtered = this.filterToolsBySessionMode(availableTools, sessionMode)
     if (opts?.enableSkill === false) {
-      return availableTools
+      return filtered
     }
     const skill = await this.getSkillTool()
-    return [...availableTools, skill]
+    return [...filtered, skill]
+  }
+
+  private filterToolsBySessionMode(
+    tools: McpTool[],
+    sessionMode: SessionMode,
+  ): McpTool[] {
+    if (sessionMode === 'read-write') return [...tools]
+    // read-only: remove built-in read-write and danger-zone tools
+    return tools.filter((tool) => {
+      const tier = getBuiltinToolTier(tool.name)
+      if (tier === null) return true // non-built-in MCP server tools are kept
+      return tier === 'read-only'
+    })
   }
 
   public listBuiltInTools(): McpTool[] {
@@ -379,7 +415,7 @@ export class McpManager {
     requestToolName: string
     conversationId?: string
   }): boolean {
-    // Check if the tool is allowed for the conversation
+    // Conversation-level explicit allowlist takes priority
     if (conversationId) {
       if (
         this.allowedToolsByConversation
@@ -390,6 +426,16 @@ export class McpManager {
       }
     }
 
+    // Built-in vault tool: decide by tier
+    const tier = getBuiltinToolTier(requestToolName)
+    if (tier !== null) {
+      if (tier === 'danger-zone') return false // always require explicit approval
+      if (tier === 'read-only') return true // safe to auto-execute
+      // read-write tier: respect the user's global preference
+      return this.settings.chatOptions.defaultAllowBuiltinReadWrite ?? false
+    }
+
+    // External MCP server tool: check server-level allowAutoExecution flag
     try {
       const { serverName, toolName } = parseToolName(requestToolName)
       const server = this.servers.find((server) => server.name === serverName)

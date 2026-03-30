@@ -13,6 +13,7 @@ import {
 } from '../../core/llm/exception'
 import { getChatModelClient } from '../../core/llm/manager'
 import { ChatMessage } from '../../types/chat'
+import { SessionMode } from '../../core/mcp/mcpManager'
 import { PromptGenerator } from '../../utils/chat/promptGenerator'
 import { ResponseGenerator } from '../../utils/chat/responseGenerator'
 import { ErrorModal } from '../modals/ErrorModal'
@@ -21,6 +22,7 @@ type UseChatStreamManagerParams = {
   setChatMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
   autoScrollToBottom: () => void
   promptGenerator: PromptGenerator
+  sessionMode: SessionMode
 }
 
 export type UseChatStreamManager = {
@@ -36,6 +38,7 @@ export function useChatStreamManager({
   setChatMessages,
   autoScrollToBottom,
   promptGenerator,
+  sessionMode,
 }: UseChatStreamManagerParams): UseChatStreamManager {
   const app = useApp()
   const { settings, setSettings } = useSettings()
@@ -116,6 +119,7 @@ export function useChatStreamManager({
           enableTools: settings.chatOptions.enableTools,
           enableSkills: settings.chatOptions.enableSkills,
           maxAutoIterations: settings.chatOptions.maxAutoIterations,
+          sessionMode,
           promptGenerator,
           mcpManager,
           abortSignal: abortController.signal,

@@ -1,9 +1,17 @@
 import clsx from 'clsx'
-import { Check, ChevronDown, ChevronRight, Loader2, X } from 'lucide-react'
+import {
+  AlertTriangle,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  X,
+} from 'lucide-react'
 import { memo, useCallback, useMemo, useState } from 'react'
 
 import { useMcp } from '../../contexts/mcp-context'
 import { useSettings } from '../../contexts/settings-context'
+import { getBuiltinToolTier } from '../../core/mcp/builtin-tool-tiers'
 import { InvalidToolNameException } from '../../core/mcp/exception'
 import { parseToolName } from '../../core/mcp/tool-name-utils'
 import { ChatToolMessage } from '../../types/chat'
@@ -121,6 +129,7 @@ function ToolCallItem({
     }
   }, [request.name])
   const canAutoAllow = !!serverName
+  const isDangerZone = getBuiltinToolTier(request.name) === 'danger-zone'
   const parameters = useMemo(() => {
     if (!request.arguments) {
       return 'No parameters'
@@ -133,7 +142,12 @@ function ToolCallItem({
   }, [request.arguments])
 
   return (
-    <div className="smtcmp-toolcall">
+    <div
+      className={clsx(
+        'smtcmp-toolcall',
+        isDangerZone && 'smtcmp-toolcall--danger',
+      )}
+    >
       <div
         onClick={() => setIsOpen(!isOpen)}
         className="smtcmp-toolcall-header"
@@ -172,6 +186,16 @@ function ToolCallItem({
           )}
         </div>
       )}
+      {isDangerZone &&
+        response.status === ToolCallResponseStatus.PendingApproval && (
+          <div className="smtcmp-toolcall-danger-warning">
+            <AlertTriangle size={14} />
+            <span>
+              This operation is destructive and cannot be undone from within
+              Obsidian.
+            </span>
+          </div>
+        )}
       {(response.status === ToolCallResponseStatus.PendingApproval ||
         response.status === ToolCallResponseStatus.Running) && (
         <div className="smtcmp-toolcall-footer">
