@@ -92,8 +92,9 @@ export class ChatManager extends AbstractJsonRepository<
       updatedAt: Date.now(),
     }
 
+    const canonicalFileName = this.generateFileName(updatedChat)
     await this.writeCanonicalChat(updatedChat)
-    await this.removeChatEntries(matchingEntries)
+    await this.removeChatEntries(matchingEntries, canonicalFileName)
     return updatedChat
   }
 

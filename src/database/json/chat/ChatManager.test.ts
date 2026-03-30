@@ -177,6 +177,35 @@ describe('ChatManager', () => {
       )
     })
 
+    it('updates a canonical chat file without deleting it', async () => {
+      jest.spyOn(Date, 'now').mockReturnValue(300)
+
+      const existingChat = createChat({
+        id: 'same-id',
+        title: 'Original title',
+        updatedAt: 100,
+      })
+
+      const { app, files } = createMockApp({
+        [`${CHAT_DIR}/same-id.json`]: JSON.stringify(existingChat),
+      })
+
+      const chatManager = new ChatManager(app)
+      const updatedChat = await chatManager.updateChat('same-id', {
+        title: 'Updated title',
+      })
+
+      expect(updatedChat).toEqual({
+        ...existingChat,
+        title: 'Updated title',
+        updatedAt: 300,
+      })
+      expect(Array.from(files.keys())).toEqual([`${CHAT_DIR}/same-id.json`])
+      expect(JSON.parse(files.get(`${CHAT_DIR}/same-id.json`) ?? '')).toEqual(
+        updatedChat,
+      )
+    })
+
     it('updates an existing legacy chat into the stable file and removes stale copies', async () => {
       jest.spyOn(Date, 'now').mockReturnValue(300)
 
