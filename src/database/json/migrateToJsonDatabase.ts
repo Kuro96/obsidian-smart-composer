@@ -8,7 +8,9 @@ import { ChatManager } from './chat/ChatManager'
 import { INITIAL_MIGRATION_MARKER, ROOT_DIR } from './constants'
 import { TemplateManager } from './template/TemplateManager'
 
-async function hasMigrationCompleted(app: App): Promise<boolean> {
+export async function hasJsonDatabaseMigrationCompleted(
+  app: App,
+): Promise<boolean> {
   const markerPath = normalizePath(`${ROOT_DIR}/${INITIAL_MIGRATION_MARKER}`)
   return await app.vault.adapter.exists(markerPath)
 }
@@ -114,12 +116,18 @@ async function transferTemplatesFromDrizzle(
 
 export async function migrateToJsonDatabase(
   app: App,
-  dbManager: DatabaseManager,
+  dbManager?: DatabaseManager,
   onMigrationComplete?: () => void,
 ): Promise<void> {
-  if (await hasMigrationCompleted(app)) {
+  if (await hasJsonDatabaseMigrationCompleted(app)) {
     await repairJsonChatStorage(app)
     return
+  }
+
+  if (!dbManager) {
+    throw new Error(
+      'Database manager is required before JSON migration completes',
+    )
   }
 
   await transferChatHistoryFromLegacy(app)

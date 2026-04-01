@@ -295,6 +295,10 @@ ${message.annotations
           (m): m is MentionableVault => m.type === 'vault',
         )
 
+      if (!this.settings.vaultChatEnabled) {
+        useVaultSearch = false
+      }
+
       onQueryProgressChange?.({
         type: 'reading-mentionables',
       })
@@ -322,7 +326,9 @@ ${message.annotations
         }
         return false
       }
-      const shouldUseRAG = useVaultSearch || (await exceedsTokenThreshold())
+      const shouldUseRAG =
+        this.settings.vaultChatEnabled &&
+        (useVaultSearch || (await exceedsTokenThreshold()))
 
       let filePrompt: string
       if (shouldUseRAG) {

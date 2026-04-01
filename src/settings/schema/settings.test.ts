@@ -15,6 +15,8 @@ describe('parseSmartComposerSettings', () => {
     expect(result).toEqual({
       version: SETTINGS_SCHEMA_VERSION,
 
+      vaultChatEnabled: true,
+
       providers: [...DEFAULT_PROVIDERS],
 
       chatModels: [...DEFAULT_CHAT_MODELS],
@@ -50,7 +52,20 @@ describe('parseSmartComposerSettings', () => {
         enableTools: true,
         enableSkills: true,
         maxAutoIterations: 1,
+        defaultAllowBuiltinReadWrite: false,
       },
     })
+  })
+
+  it('should coerce version 18 settings back to schema version 17', () => {
+    const result = parseSmartComposerSettings({
+      version: 18,
+      systemPrompt: 'test prompt',
+    })
+
+    expect(result.version).toBe(SETTINGS_SCHEMA_VERSION)
+    expect(result.version).toBe(17)
+    expect(result.vaultChatEnabled).toBe(true)
+    expect(result.systemPrompt).toBe('test prompt')
   })
 })

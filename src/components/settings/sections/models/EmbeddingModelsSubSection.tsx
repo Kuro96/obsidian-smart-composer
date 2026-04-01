@@ -36,17 +36,19 @@ export function EmbeddingModelsSubSection({
       message: message,
       ctaText: 'Delete',
       onConfirm: async () => {
-        const vectorManager = (await plugin.getDbManager()).getVectorManager()
-        const embeddingStats = await vectorManager.getEmbeddingStats()
-        const embeddingStat = embeddingStats.find((v) => v.model === modelId)
+        if (settings.vaultChatEnabled) {
+          const vectorManager = (await plugin.getDbManager()).getVectorManager()
+          const embeddingStats = await vectorManager.getEmbeddingStats()
+          const embeddingStat = embeddingStats.find((v) => v.model === modelId)
 
-        if (embeddingStat?.rowCount && embeddingStat.rowCount > 0) {
-          // only clear when there's data
-          const embeddingModelClient = getEmbeddingModelClient({
-            settings,
-            embeddingModelId: modelId,
-          })
-          await vectorManager.clearAllVectors(embeddingModelClient)
+          if (embeddingStat?.rowCount && embeddingStat.rowCount > 0) {
+            // only clear when there's data
+            const embeddingModelClient = getEmbeddingModelClient({
+              settings,
+              embeddingModelId: modelId,
+            })
+            await vectorManager.clearAllVectors(embeddingModelClient)
+          }
         }
 
         await setSettings({

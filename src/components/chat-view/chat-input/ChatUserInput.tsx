@@ -11,6 +11,7 @@ import {
 } from 'react'
 
 import { useApp } from '../../../contexts/app-context'
+import { useSettings } from '../../../contexts/settings-context'
 import {
   Mentionable,
   MentionableImage,
@@ -66,6 +67,7 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
     ref,
   ) => {
     const app = useApp()
+    const { settings } = useSettings()
 
     const editorRef = useRef<LexicalEditor | null>(null)
     const contentEditableRef = useRef<HTMLDivElement>(null)
@@ -264,6 +266,9 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
           plugins={{
             onEnter: {
               onVaultChat: () => {
+                if (!settings.vaultChatEnabled) {
+                  return
+                }
                 handleSubmit({ useVaultSearch: true })
               },
             },
@@ -280,11 +285,13 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
           <div className="smtcmp-chat-user-input-controls__buttons">
             <ImageUploadButton onUpload={handleUploadImages} />
             <SubmitButton onClick={() => handleSubmit()} />
-            <VaultChatButton
-              onClick={() => {
-                handleSubmit({ useVaultSearch: true })
-              }}
-            />
+            {settings.vaultChatEnabled && (
+              <VaultChatButton
+                onClick={() => {
+                  handleSubmit({ useVaultSearch: true })
+                }}
+              />
+            )}
           </div>
         </div>
       </div>

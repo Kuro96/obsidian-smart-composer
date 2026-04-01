@@ -51,6 +51,7 @@ const DEFAULT_CHAT_MODELS_V17 = [
 export const migrateFrom16To17: SettingMigration['migrate'] = (data) => {
   const newData = { ...data }
   newData.version = 17
+  newData.vaultChatEnabled = true
 
   newData.providers = getMigratedProviders(newData, DEFAULT_PROVIDERS_V17)
   newData.chatModels = getMigratedChatModels(newData, DEFAULT_CHAT_MODELS_V17)

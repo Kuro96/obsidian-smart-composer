@@ -46,6 +46,8 @@ export const smartComposerSettingsSchema = z.object({
   // Version
   version: z.literal(SETTINGS_SCHEMA_VERSION).catch(SETTINGS_SCHEMA_VERSION),
 
+  vaultChatEnabled: z.boolean().catch(true),
+
   providers: z.array(llmProviderSchema).catch([...DEFAULT_PROVIDERS]),
 
   chatModels: z.array(chatModelSchema).catch([...DEFAULT_CHAT_MODELS]),

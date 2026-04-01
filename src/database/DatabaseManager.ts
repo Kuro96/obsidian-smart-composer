@@ -12,6 +12,7 @@ import { VectorManager } from './modules/vector/VectorManager'
 export class DatabaseManager {
   private app: App
   private dbPath: string
+  private persistChanges: boolean
   private pgClient: PGlite | null = null
   private db: PgliteDatabase | null = null
   // WeakMap to prevent circular references
@@ -23,13 +24,21 @@ export class DatabaseManager {
     }
   >()
 
-  constructor(app: App, dbPath: string) {
+  constructor(app: App, dbPath: string, persistChanges = true) {
     this.app = app
     this.dbPath = dbPath
+    this.persistChanges = persistChanges
   }
 
-  static async create(app: App): Promise<DatabaseManager> {
-    const dbManager = new DatabaseManager(app, normalizePath(PGLITE_DB_PATH))
+  static async create(
+    app: App,
+    options: { persistChanges?: boolean } = {},
+  ): Promise<DatabaseManager> {
+    const dbManager = new DatabaseManager(
+      app,
+      normalizePath(PGLITE_DB_PATH),
+      options.persistChanges ?? true,
+    )
     dbManager.db = await dbManager.loadExistingDatabase()
     if (!dbManager.db) {
       dbManager.db = await dbManager.createNewDatabase()
@@ -180,7 +189,7 @@ export class DatabaseManager {
   }
 
   async save(): Promise<void> {
-    if (!this.pgClient) {
+    if (!this.pgClient || !this.persistChanges) {
       return
     }
     try {

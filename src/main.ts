@@ -9,7 +9,10 @@ import { McpManager } from './core/mcp/mcpManager'
 import { RAGEngine } from './core/rag/ragEngine'
 import { DatabaseManager } from './database/DatabaseManager'
 import { PGLiteAbortedException } from './database/exception'
-import { migrateToJsonDatabase } from './database/json/migrateToJsonDatabase'
+import {
+  hasJsonDatabaseMigrationCompleted,
+  migrateToJsonDatabase,
+} from './database/json/migrateToJsonDatabase'
 import {
   SmartComposerSettings,
   smartComposerSettingsSchema,
@@ -59,6 +62,11 @@ export default class SmartComposerPlugin extends Plugin {
       id: 'rebuild-vault-index',
       name: 'Rebuild entire vault index',
       callback: async () => {
+        if (!this.settings.vaultChatEnabled) {
+          new Notice('Vault Chat is disabled')
+          return
+        }
+
         const notice = new Notice('Rebuilding vault index...', 0)
         try {
           const ragEngine = await this.getRAGEngine()
@@ -94,6 +102,11 @@ export default class SmartComposerPlugin extends Plugin {
       id: 'update-vault-index',
       name: 'Update index for modified files',
       callback: async () => {
+        if (!this.settings.vaultChatEnabled) {
+          new Notice('Vault Chat is disabled')
+          return
+        }
+
         const notice = new Notice('Updating vault index...', 0)
         try {
           const ragEngine = await this.getRAGEngine()
@@ -265,6 +278,10 @@ ${validationResult.error.issues.map((v) => v.message).join('\n')}`)
   }
 
   async getRAGEngine(): Promise<RAGEngine> {
+    if (!this.settings.vaultChatEnabled) {
+      throw new Error('Vault Chat is disabled')
+    }
+
     if (this.ragEngine) {
       return this.ragEngine
     }
@@ -316,8 +333,23 @@ ${validationResult.error.issues.map((v) => v.message).join('\n')}`)
   }
 
   private async migrateToJsonStorage() {
+    let migrationDbManager: DatabaseManager | undefined
+
     try {
-      const dbManager = await this.getDbManager()
+      const hasCompletedMigration = await hasJsonDatabaseMigrationCompleted(
+        this.app,
+      )
+      const dbManager = hasCompletedMigration
+        ? undefined
+        : this.settings.vaultChatEnabled
+          ? await this.getDbManager()
+          : await DatabaseManager.create(this.app, { persistChanges: false })
+
+      migrationDbManager =
+        !hasCompletedMigration && !this.settings.vaultChatEnabled
+          ? dbManager
+          : undefined
+
       await migrateToJsonDatabase(this.app, dbManager, async () => {
         await this.reloadChatView()
         console.log('Migration to JSON storage completed successfully')
@@ -327,6 +359,8 @@ ${validationResult.error.issues.map((v) => v.message).join('\n')}`)
       new Notice(
         'Failed to migrate to JSON storage. Please check the console for details.',
       )
+    } finally {
+      await migrationDbManager?.cleanup()
     }
   }
 

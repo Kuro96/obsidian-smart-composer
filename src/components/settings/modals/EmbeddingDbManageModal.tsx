@@ -47,6 +47,22 @@ function EmbeddingDbManagerModalComponentWrapper({
   app,
   plugin,
 }: EmbeddingDbManagerModalComponentWrapperProps) {
+  if (!plugin.settings.vaultChatEnabled) {
+    return (
+      <AppProvider app={app}>
+        <SettingsProvider
+          settings={plugin.settings}
+          setSettings={(newSettings) => plugin.setSettings(newSettings)}
+          addSettingsChangeListener={(listener) =>
+            plugin.addSettingsChangeListener(listener)
+          }
+        >
+          <div>Vault Chat is disabled.</div>
+        </SettingsProvider>
+      </AppProvider>
+    )
+  }
+
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {

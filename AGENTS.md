@@ -1,1 +1,3 @@
 - After completing each round of work in this project, run `npm run build` and report the result.
+- Settings schema migrations stop at version `17`. Do not add new `17_to_*` migration files; keep future settings migration changes consolidated in `src/settings/schema/migrations/16_to_17.ts` and leave the schema version at `17`.
+- Before changing this repo, first check whether there is existing code, UI, or utility logic that can be reused, and keep new changes consistent with the established structure and visual/style patterns.
