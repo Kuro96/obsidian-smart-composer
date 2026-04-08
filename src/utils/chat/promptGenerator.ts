@@ -2,18 +2,16 @@ import { App, TFile, htmlToMarkdown, requestUrl } from 'obsidian'
 
 import { editorStateToPlainText } from '../../components/chat-view/chat-input/utils/editor-state-to-plain-text'
 import { QueryProgressState } from '../../components/chat-view/QueryProgress'
+import { ContextBuilder } from '../../core/context/ContextBuilder'
+import { McpManager } from '../../core/mcp/mcpManager'
 import { RAGEngine } from '../../core/rag/ragEngine'
 import { SelectEmbedding } from '../../database/schema'
 import { SmartComposerSettings } from '../../settings/schema/setting.types'
-import {
-  ChatAssistantMessage,
-  ChatMessage,
-  ChatToolMessage,
-  ChatUserMessage,
-} from '../../types/chat'
+import { ChatMessage, ChatUserMessage } from '../../types/chat'
 import { ContentPart, RequestMessage } from '../../types/llm/request'
 import {
   MentionableBlock,
+  MentionableCurrentFile,
   MentionableFile,
   MentionableFolder,
   MentionableImage,
@@ -21,7 +19,6 @@ import {
   MentionableVault,
 } from '../../types/mentionable'
 import { PromptLevel } from '../../types/prompt-level.types'
-import { ToolCallResponseStatus } from '../../types/tool-call.types'
 import { tokenCount } from '../llm/token'
 import {
   getNestedFiles,
@@ -30,14 +27,26 @@ import {
 } from '../obsidian'
 
 import { YoutubeTranscript, isYoutubeUrl } from './youtube-transcript'
-import { McpManager } from '../../core/mcp/mcpManager'
 
+/**
+ * PromptGenerator — Phase 6 重构
+ *
+ * 职责被压缩到两件事：
+ * 1. compileUserMessagePrompt: 编译用户输入（读 vault / RAG 检索 / 抓 URL / 当前文件 snapshot）
+ *    把所有"动态上下文"在用户消息提交时一次性快照到 promptContent
+ * 2. generateRequestMessages: 委托给 ContextBuilder 组装最终 RequestMessage[]
+ *
+ * 重构动机（cache 复用，详见 ContextBuilder.ts 头部注释）：
+ * - currentFile 由原来"每轮 generateRequestMessages 时独立读取"改为"compile 时嵌入 promptContent"
+ *   → 避免用户编辑当前文件时打断历史 cache
+ * - system message 由 ContextBuilder 统一根据 settings 生成（会话级稳定）
+ *   → 避免按 per-message shouldUseRAG 切换导致 prefix 失效
+ */
 export class PromptGenerator {
   private getRagEngine: () => Promise<RAGEngine>
   private app: App
   private settings: SmartComposerSettings
-  private getMcpManager?: () => Promise<McpManager>
-  private MAX_CONTEXT_MESSAGES = 20
+  private contextBuilder: ContextBuilder
 
   constructor(
     getRagEngine: () => Promise<RAGEngine>,
@@ -48,7 +57,7 @@ export class PromptGenerator {
     this.getRagEngine = getRagEngine
     this.app = app
     this.settings = settings
-    this.getMcpManager = getMcpManager
+    this.contextBuilder = new ContextBuilder(app, settings, getMcpManager)
   }
 
   public async generateRequestMessages({
@@ -60,194 +69,25 @@ export class PromptGenerator {
       throw new Error('No messages provided')
     }
 
-    // Ensure all user messages have prompt content
-    // This is a fallback for cases where compilation was missed earlier in the process
+    // Fallback：如果某条 user message 还没编译过 promptContent，这里补一次。
+    // 正常路径下 Chat.tsx 在 submit 阶段已经全部编译过。
     const compiledMessages = await Promise.all(
       messages.map(async (message) => {
         if (message.role === 'user' && !message.promptContent) {
           const { promptContent, similaritySearchResults } =
-            await this.compileUserMessagePrompt({
-              message,
-            })
-          return {
-            ...message,
-            promptContent,
-            similaritySearchResults,
-          }
+            await this.compileUserMessagePrompt({ message })
+          return { ...message, promptContent, similaritySearchResults }
         }
         return message
       }),
     )
 
-    // find last user message
-    let lastUserMessage: ChatUserMessage | undefined = undefined
-    for (let i = compiledMessages.length - 1; i >= 0; --i) {
-      if (compiledMessages[i].role === 'user') {
-        lastUserMessage = compiledMessages[i] as ChatUserMessage
-        break
-      }
-    }
-    if (!lastUserMessage) {
+    // 至少存在一条 user message
+    if (!compiledMessages.some((m) => m.role === 'user')) {
       throw new Error('No user messages found')
     }
-    const shouldUseRAG = lastUserMessage.similaritySearchResults !== undefined
 
-    const systemMessage = this.getSystemMessage(shouldUseRAG)
-
-    const customInstructionMessage = this.getCustomInstructionMessage()
-    const skillMessage = await this.getSkillMessage()
-
-    const currentFile = lastUserMessage.mentionables.find(
-      (m) => m.type === 'current-file',
-    )?.file
-    const currentFileMessage =
-      currentFile && this.settings.chatOptions.includeCurrentFileContent
-        ? await this.getCurrentFileMessage(currentFile)
-        : undefined
-
-    const requestMessages: RequestMessage[] = [
-      systemMessage,
-      ...(customInstructionMessage ? [customInstructionMessage] : []),
-      ...(skillMessage ? [skillMessage] : []),
-      ...(currentFileMessage ? [currentFileMessage] : []),
-      ...this.getChatHistoryMessages({ messages: compiledMessages }),
-      ...(shouldUseRAG && this.getModelPromptLevel() == PromptLevel.Default
-        ? [this.getRagInstructionMessage()]
-        : []),
-    ]
-
-    return requestMessages
-  }
-
-  private getChatHistoryMessages({
-    messages,
-  }: {
-    messages: ChatMessage[]
-  }): RequestMessage[] {
-    // Get the last MAX_CONTEXT_MESSAGES messages and parse them into request messages
-    const requestMessages: RequestMessage[] = messages
-      .slice(-this.MAX_CONTEXT_MESSAGES)
-      .flatMap((message): RequestMessage[] => {
-        if (message.role === 'user') {
-          // We assume that all user messages have been compiled
-          return [
-            {
-              role: 'user',
-              content: message.promptContent ?? '',
-            },
-          ]
-        } else if (message.role === 'assistant') {
-          return this.parseAssistantMessage({ message })
-        } else {
-          // message.role === 'tool'
-          return this.parseToolMessage({ message })
-        }
-      })
-
-    // TODO: Also verify that tool messages appear right after their corresponding assistant tool calls
-    const filteredRequestMessages: RequestMessage[] = requestMessages
-      .map((msg) => {
-        switch (msg.role) {
-          case 'user':
-            return msg
-          case 'assistant': {
-            // Filter out tool calls that don't have a corresponding tool message
-            const filteredToolCalls = msg.tool_calls?.filter((t) =>
-              requestMessages.some(
-                (rm) => rm.role === 'tool' && rm.tool_call.id === t.id,
-              ),
-            )
-            return {
-              ...msg,
-              tool_calls:
-                filteredToolCalls && filteredToolCalls.length > 0
-                  ? filteredToolCalls
-                  : undefined,
-            }
-          }
-          case 'tool': {
-            // Filter out tool messages that don't have a corresponding assistant message
-            const assistantMessage = requestMessages.find(
-              (rm) =>
-                rm.role === 'assistant' &&
-                rm.tool_calls?.some((t) => t.id === msg.tool_call.id),
-            )
-            if (!assistantMessage) {
-              return null
-            } else {
-              return msg
-            }
-          }
-          default:
-            return msg
-        }
-      })
-      .filter((m) => m !== null)
-
-    return filteredRequestMessages
-  }
-
-  private parseAssistantMessage({
-    message,
-  }: {
-    message: ChatAssistantMessage
-  }): RequestMessage[] {
-    let citationContent: string | null = null
-    if (message.annotations && message.annotations.length > 0) {
-      citationContent = `Citations:
-${message.annotations
-  .map((annotation, index) => {
-    if (annotation.type === 'url_citation') {
-      const { url, title } = annotation.url_citation
-      return `[${index + 1}] ${title ? `${title}: ` : ''}${url}`
-    }
-  })
-  .join('\n')}`
-    }
-
-    return [
-      {
-        role: 'assistant',
-        content: [
-          message.content,
-          ...(citationContent ? [citationContent] : []),
-        ].join('\n'),
-        tool_calls: message.toolCallRequests,
-        providerMetadata: message.providerMetadata,
-      },
-    ]
-  }
-
-  private parseToolMessage({
-    message,
-  }: {
-    message: ChatToolMessage
-  }): RequestMessage[] {
-    return message.toolCalls.map((toolCall) => {
-      switch (toolCall.response.status) {
-        case ToolCallResponseStatus.PendingApproval:
-        case ToolCallResponseStatus.Running:
-        case ToolCallResponseStatus.Rejected:
-        case ToolCallResponseStatus.Aborted:
-          return {
-            role: 'tool',
-            tool_call: toolCall.request,
-            content: `Tool call ${toolCall.request.id} is ${toolCall.response.status}`,
-          }
-        case ToolCallResponseStatus.Success:
-          return {
-            role: 'tool',
-            tool_call: toolCall.request,
-            content: toolCall.response.data.text,
-          }
-        case ToolCallResponseStatus.Error:
-          return {
-            role: 'tool',
-            tool_call: toolCall.request,
-            content: `Error: ${toolCall.response.error}`,
-          }
-      }
-    })
+    return this.contextBuilder.build({ compiledMessages })
   }
 
   public async compileUserMessagePrompt({
@@ -387,6 +227,27 @@ ${await this.getWebsiteContent(url)}
 `
           : ''
 
+      // Phase 6 cache 优化：currentFile snapshot 在此处一次性写入 promptContent，
+      // 不再由 generateRequestMessages 在每轮重新读取。这样：
+      // - 已发送的 user message 是稳定快照（即使用户后续编辑了文件，历史也不变）
+      // - 多轮 tool call 中前一 turn 的 prompt prefix 完全可缓存
+      const currentFile = message.mentionables.find(
+        (m): m is MentionableCurrentFile => m.type === 'current-file',
+      )?.file
+      let currentFilePrompt = ''
+      if (currentFile && this.settings.chatOptions.includeCurrentFileContent) {
+        const currentFileContent = await readTFileContent(
+          currentFile,
+          this.app.vault,
+        )
+        currentFilePrompt = `# Inputs
+## Current File
+Here is the file I'm looking at.
+\`\`\`${currentFile.path}
+${currentFileContent}
+\`\`\`\n\n`
+      }
+
       const imageDataUrls = message.mentionables
         .filter((m): m is MentionableImage => m.type === 'image')
         .map(({ data }) => data)
@@ -408,7 +269,7 @@ ${await this.getWebsiteContent(url)}
           ),
           {
             type: 'text',
-            text: `${filePrompt}${blockPrompt}${urlPrompt}\n\n${query}\n\n`,
+            text: `${currentFilePrompt}${filePrompt}${blockPrompt}${urlPrompt}\n\n${query}\n\n`,
           },
         ],
         shouldUseRAG,
@@ -420,139 +281,6 @@ ${await this.getWebsiteContent(url)}
         type: 'idle',
       })
       throw error
-    }
-  }
-
-  private getSystemMessage(shouldUseRAG: boolean): RequestMessage {
-    const modelPromptLevel = this.getModelPromptLevel()
-    const systemPrompt = `You are an intelligent assistant to help answer any questions that the user has${modelPromptLevel == PromptLevel.Default ? `, particularly about editing and organizing markdown files in Obsidian` : ''}.
-
-1. Please keep your response as concise as possible. Avoid being verbose.
-
-2. Do not lie or make up facts.
-
-3. Format your response in markdown.
-
-${
-  modelPromptLevel == PromptLevel.Default
-    ? `4. Respond in the same language as the user's message.
-
-5. When writing out new markdown blocks, also wrap them with <smtcmp_block> tags. For example:
-<smtcmp_block language="markdown">
-{{ content }}
-</smtcmp_block>
-
-6. When providing markdown blocks for an existing file, add the filename and language attributes to the <smtcmp_block> tags. Restate the relevant section or heading, so the user knows which part of the file you are editing. For example:
-<smtcmp_block filename="path/to/file.md" language="markdown">
-## Section Title
-...
-{{ content }}
-...
-</smtcmp_block>
-
-7. When the user is asking for edits to their markdown, please provide a simplified version of the markdown block emphasizing only the changes. Use comments to show where unchanged content has been skipped. Wrap the markdown block with <smtcmp_block> tags. Add filename and language attributes to the <smtcmp_block> tags. For example:
-<smtcmp_block filename="path/to/file.md" language="markdown">
-<!-- ... existing content ... -->
-{{ edit_1 }}
-<!-- ... existing content ... -->
-{{ edit_2 }}
-<!-- ... existing content ... -->
-</smtcmp_block>
-The user has full access to the file, so they prefer seeing only the changes in the markdown. Often this will mean that the start/end of the file will be skipped, but that's okay! Rewrite the entire file only if specifically requested. Always provide a brief explanation of the updates, except when the user specifically asks for just the content.
-`
-    : ''
-}`
-
-    const systemPromptRAG = `You are an intelligent assistant to help answer any questions that the user has${modelPromptLevel == PromptLevel.Default ? `, particularly about editing and organizing markdown files in Obsidian` : ''}. You will be given your conversation history with them and potentially relevant blocks of markdown content from the current vault.
-      
-1. Do not lie or make up facts.
-
-2. Format your response in markdown.
-
-${
-  modelPromptLevel == PromptLevel.Default
-    ? `3. Respond in the same language as the user's message.
-
-4. When referencing markdown blocks in your answer, keep the following guidelines in mind:
-
-  a. Never include line numbers in the output markdown.
-
-  b. Wrap the markdown block with <smtcmp_block> tags. Include language attribute. For example:
-  <smtcmp_block language="markdown">
-  {{ content }}
-  </smtcmp_block>
-
-  c. When providing markdown blocks for an existing file, also include the filename attribute to the <smtcmp_block> tags. For example:
-  <smtcmp_block filename="path/to/file.md" language="markdown">
-  {{ content }}
-  </smtcmp_block>
-
-  d. When referencing a markdown block the user gives you, only add the startLine and endLine attributes to the <smtcmp_block> tags. Write related content outside of the <smtcmp_block> tags. The content inside the <smtcmp_block> tags will be ignored and replaced with the actual content of the markdown block. For example:
-  <smtcmp_block filename="path/to/file.md" language="markdown" startLine="2" endLine="30"></smtcmp_block>`
-    : ''
-}`
-
-    return {
-      role: 'system',
-      content: shouldUseRAG ? systemPromptRAG : systemPrompt,
-    }
-  }
-
-  private getCustomInstructionMessage(): RequestMessage | null {
-    const customInstruction = this.settings.systemPrompt.trim()
-    if (!customInstruction) {
-      return null
-    }
-    return {
-      role: 'user',
-      content: `Here are additional instructions to follow in your responses when relevant. There's no need to explicitly acknowledge them:
-<custom_instructions>
-${customInstruction}
-</custom_instructions>`,
-    }
-  }
-
-  private async getSkillMessage(): Promise<RequestMessage | null> {
-    if (
-      !this.settings.chatOptions.enableTools ||
-      !this.settings.chatOptions.enableSkills ||
-      !this.getMcpManager
-    ) {
-      return null
-    }
-    const mcpManager = await this.getMcpManager()
-    if (mcpManager.disabled) {
-      return null
-    }
-    const section = await mcpManager.getSkillPromptSection()
-    return {
-      role: 'system',
-      content: section,
-    }
-  }
-
-  private async getCurrentFileMessage(
-    currentFile: TFile,
-  ): Promise<RequestMessage> {
-    const fileContent = await readTFileContent(currentFile, this.app.vault)
-    return {
-      role: 'user',
-      content: `# Inputs
-## Current File
-Here is the file I'm looking at.
-\`\`\`${currentFile.path}
-${fileContent}
-\`\`\`\n\n`,
-    }
-  }
-
-  private getRagInstructionMessage(): RequestMessage {
-    return {
-      role: 'user',
-      content: `If you need to reference any of the markdown blocks I gave you, add the startLine and endLine attributes to the <smtcmp_block> tags without any content inside. For example:
-<smtcmp_block filename="path/to/file.md" language="markdown" startLine="200" endLine="310"></smtcmp_block>
-
-When writing out new markdown blocks, remember not to include "line_number|" at the beginning of each line.`,
     }
   }
 

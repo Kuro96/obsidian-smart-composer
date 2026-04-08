@@ -1,0 +1,356 @@
+/**
+ * ContextBuilder — Phase 6 cache 友好的请求消息组装
+ *
+ * 重构动机（cache 复用）：
+ * 旧 promptGenerator 的组装顺序为：
+ *   system(按 shouldUseRAG 二选一) → customInstr → skill → currentFile → history
+ *
+ * 这导致 prompt cache 频繁失效：
+ * 1. system message 按 per-message 的 shouldUseRAG 二选一 → 整个 prefix 失效
+ * 2. currentFile 作为独立 message 出现在 history 之前 → 用户编辑当前文件后，
+ *    后续整个 history 的 cache 都被打断
+ * 3. currentFile 每轮 generateRequestMessages 时重新读取 → 多轮 tool call 中
+ *    跨 turn 的 cache 也会因 currentFile 变化而失效
+ *
+ * 新顺序（cache 友好）：
+ *   1. 稳定 prefix：system(单一版本，由 settings.vaultChatEnabled 决定，会话级稳定)
+ *      → customInstr(来自 settings) → skill(来自 settings/mcp)
+ *   2. 历史消息：含已发送的 user message。currentFile snapshot 在 compileUserMessagePrompt
+ *      阶段已嵌入到各 user message 的 promptContent，所以 history 是稳定快照
+ *   3. 末尾：rag 引用指令（仅当 vaultChatEnabled，会话级稳定）
+ *
+ * 这样：
+ * - system 稳定 → prefix 不会因 RAG 切换而失效
+ * - currentFile 跟随 user message 一起被快照 → 用户编辑文件不影响历史 cache
+ * - 多轮 tool call 中，前一 turn 已经发送的内容（含 user message）完全可缓存
+ */
+
+import { App } from 'obsidian'
+
+import { SmartComposerSettings } from '../../settings/schema/setting.types'
+import {
+  ChatAssistantMessage,
+  ChatMessage,
+  ChatToolMessage,
+} from '../../types/chat'
+import { RequestMessage } from '../../types/llm/request'
+import { PromptLevel } from '../../types/prompt-level.types'
+import { ToolCallResponseStatus } from '../../types/tool-call.types'
+
+import { McpManager } from '../mcp/mcpManager'
+
+const MAX_CONTEXT_MESSAGES = 20
+
+export class ContextBuilder {
+  constructor(
+    private readonly app: App,
+    private readonly settings: SmartComposerSettings,
+    private readonly getMcpManager?: () => Promise<McpManager>,
+  ) {}
+
+  /**
+   * 组装本轮请求的完整 RequestMessage 列表。
+   *
+   * 调用方需先把所有 user message 通过 compileUserMessagePrompt 编译过，
+   * 此处仅消费 promptContent，不再读取 vault / 抓取 URL / 调 RAG。
+   */
+  public async build({
+    compiledMessages,
+  }: {
+    compiledMessages: ChatMessage[]
+  }): Promise<RequestMessage[]> {
+    // ─── 稳定 prefix ───────────────────────────────────────────────
+    const systemMessage = this.getSystemMessage()
+    const customInstructionMessage = this.getCustomInstructionMessage()
+    const skillMessage = await this.getSkillMessage()
+
+    // ─── 历史消息（含 user / assistant / tool） ─────────────────────
+    // user message 自带 currentFile snapshot 与 RAG 结果，这里只是格式化
+    const chatHistoryMessages = this.getChatHistoryMessages({
+      messages: compiledMessages,
+    })
+
+    // ─── 末尾 RAG 引用指令（会话级稳定） ─────────────────────────────
+    const ragInstructionMessage =
+      this.settings.vaultChatEnabled &&
+      this.getModelPromptLevel() === PromptLevel.Default
+        ? this.getRagInstructionMessage()
+        : null
+
+    return [
+      systemMessage,
+      ...(customInstructionMessage ? [customInstructionMessage] : []),
+      ...(skillMessage ? [skillMessage] : []),
+      ...chatHistoryMessages,
+      ...(ragInstructionMessage ? [ragInstructionMessage] : []),
+    ]
+  }
+
+  // ─── System Message ─────────────────────────────────────────────────────────
+
+  /**
+   * 系统消息：由 settings.vaultChatEnabled（会话级稳定）决定，不再使用 per-message
+   * 的 shouldUseRAG，避免 prompt cache 频繁失效。
+   */
+  private getSystemMessage(): RequestMessage {
+    const modelPromptLevel = this.getModelPromptLevel()
+    // 用 settings flag 而不是 per-message shouldUseRAG，会话内稳定
+    const useRagSystemPrompt = this.settings.vaultChatEnabled
+
+    const systemPrompt = `You are an intelligent assistant to help answer any questions that the user has${modelPromptLevel == PromptLevel.Default ? `, particularly about editing and organizing markdown files in Obsidian` : ''}.
+
+1. Please keep your response as concise as possible. Avoid being verbose.
+
+2. Do not lie or make up facts.
+
+3. Format your response in markdown.
+
+${
+  modelPromptLevel == PromptLevel.Default
+    ? `4. Respond in the same language as the user's message.
+
+5. When writing out new markdown blocks, also wrap them with <smtcmp_block> tags. For example:
+<smtcmp_block language="markdown">
+{{ content }}
+</smtcmp_block>
+
+6. When providing markdown blocks for an existing file, add the filename and language attributes to the <smtcmp_block> tags. Restate the relevant section or heading, so the user knows which part of the file you are editing. For example:
+<smtcmp_block filename="path/to/file.md" language="markdown">
+## Section Title
+...
+{{ content }}
+...
+</smtcmp_block>
+
+7. When the user is asking for edits to their markdown, please provide a simplified version of the markdown block emphasizing only the changes. Use comments to show where unchanged content has been skipped. Wrap the markdown block with <smtcmp_block> tags. Add filename and language attributes to the <smtcmp_block> tags. For example:
+<smtcmp_block filename="path/to/file.md" language="markdown">
+<!-- ... existing content ... -->
+{{ edit_1 }}
+<!-- ... existing content ... -->
+{{ edit_2 }}
+<!-- ... existing content ... -->
+</smtcmp_block>
+The user has full access to the file, so they prefer seeing only the changes in the markdown. Often this will mean that the start/end of the file will be skipped, but that's okay! Rewrite the entire file only if specifically requested. Always provide a brief explanation of the updates, except when the user specifically asks for just the content.
+`
+    : ''
+}`
+
+    const systemPromptRAG = `You are an intelligent assistant to help answer any questions that the user has${modelPromptLevel == PromptLevel.Default ? `, particularly about editing and organizing markdown files in Obsidian` : ''}. You will be given your conversation history with them and potentially relevant blocks of markdown content from the current vault.
+
+1. Do not lie or make up facts.
+
+2. Format your response in markdown.
+
+${
+  modelPromptLevel == PromptLevel.Default
+    ? `3. Respond in the same language as the user's message.
+
+4. When referencing markdown blocks in your answer, keep the following guidelines in mind:
+
+  a. Never include line numbers in the output markdown.
+
+  b. Wrap the markdown block with <smtcmp_block> tags. Include language attribute. For example:
+  <smtcmp_block language="markdown">
+  {{ content }}
+  </smtcmp_block>
+
+  c. When providing markdown blocks for an existing file, also include the filename attribute to the <smtcmp_block> tags. For example:
+  <smtcmp_block filename="path/to/file.md" language="markdown">
+  {{ content }}
+  </smtcmp_block>
+
+  d. When referencing a markdown block the user gives you, only add the startLine and endLine attributes to the <smtcmp_block> tags. Write related content outside of the <smtcmp_block> tags. The content inside the <smtcmp_block> tags will be ignored and replaced with the actual content of the markdown block. For example:
+  <smtcmp_block filename="path/to/file.md" language="markdown" startLine="2" endLine="30"></smtcmp_block>`
+    : ''
+}`
+
+    return {
+      role: 'system',
+      content: useRagSystemPrompt ? systemPromptRAG : systemPrompt,
+    }
+  }
+
+  // ─── Custom Instructions ────────────────────────────────────────────────────
+
+  private getCustomInstructionMessage(): RequestMessage | null {
+    const customInstruction = this.settings.systemPrompt.trim()
+    if (!customInstruction) {
+      return null
+    }
+    return {
+      role: 'user',
+      content: `Here are additional instructions to follow in your responses when relevant. There's no need to explicitly acknowledge them:
+<custom_instructions>
+${customInstruction}
+</custom_instructions>`,
+    }
+  }
+
+  // ─── Skill Catalog ──────────────────────────────────────────────────────────
+
+  private async getSkillMessage(): Promise<RequestMessage | null> {
+    if (
+      !this.settings.chatOptions.enableTools ||
+      !this.settings.chatOptions.enableSkills ||
+      !this.getMcpManager
+    ) {
+      return null
+    }
+    const mcpManager = await this.getMcpManager()
+    if (mcpManager.disabled) {
+      return null
+    }
+    const section = await mcpManager.getSkillPromptSection()
+    return {
+      role: 'system',
+      content: section,
+    }
+  }
+
+  // ─── RAG Instruction (会话级稳定) ────────────────────────────────────────────
+
+  private getRagInstructionMessage(): RequestMessage {
+    return {
+      role: 'user',
+      content: `If you need to reference any of the markdown blocks I gave you, add the startLine and endLine attributes to the <smtcmp_block> tags without any content inside. For example:
+<smtcmp_block filename="path/to/file.md" language="markdown" startLine="200" endLine="310"></smtcmp_block>
+
+When writing out new markdown blocks, remember not to include "line_number|" at the beginning of each line.`,
+    }
+  }
+
+  // ─── Chat History 格式化 ────────────────────────────────────────────────────
+
+  private getChatHistoryMessages({
+    messages,
+  }: {
+    messages: ChatMessage[]
+  }): RequestMessage[] {
+    const requestMessages: RequestMessage[] = messages
+      .slice(-MAX_CONTEXT_MESSAGES)
+      .flatMap((message): RequestMessage[] => {
+        if (message.role === 'user') {
+          // 假定所有 user message 已经被 compileUserMessagePrompt 编译过
+          return [
+            {
+              role: 'user',
+              content: message.promptContent ?? '',
+            },
+          ]
+        } else if (message.role === 'assistant') {
+          return this.parseAssistantMessage({ message })
+        } else {
+          return this.parseToolMessage({ message })
+        }
+      })
+
+    // 过滤掉孤儿 tool call / tool message
+    const filteredRequestMessages: RequestMessage[] = requestMessages
+      .map((msg) => {
+        switch (msg.role) {
+          case 'user':
+            return msg
+          case 'assistant': {
+            const filteredToolCalls = msg.tool_calls?.filter((t) =>
+              requestMessages.some(
+                (rm) => rm.role === 'tool' && rm.tool_call.id === t.id,
+              ),
+            )
+            return {
+              ...msg,
+              tool_calls:
+                filteredToolCalls && filteredToolCalls.length > 0
+                  ? filteredToolCalls
+                  : undefined,
+            }
+          }
+          case 'tool': {
+            const assistantMessage = requestMessages.find(
+              (rm) =>
+                rm.role === 'assistant' &&
+                rm.tool_calls?.some((t) => t.id === msg.tool_call.id),
+            )
+            if (!assistantMessage) {
+              return null
+            }
+            return msg
+          }
+          default:
+            return msg
+        }
+      })
+      .filter((m) => m !== null) as RequestMessage[]
+
+    return filteredRequestMessages
+  }
+
+  private parseAssistantMessage({
+    message,
+  }: {
+    message: ChatAssistantMessage
+  }): RequestMessage[] {
+    let citationContent: string | null = null
+    if (message.annotations && message.annotations.length > 0) {
+      citationContent = `Citations:
+${message.annotations
+  .map((annotation, index) => {
+    if (annotation.type === 'url_citation') {
+      const { url, title } = annotation.url_citation
+      return `[${index + 1}] ${title ? `${title}: ` : ''}${url}`
+    }
+  })
+  .join('\n')}`
+    }
+
+    return [
+      {
+        role: 'assistant',
+        content: [
+          message.content,
+          ...(citationContent ? [citationContent] : []),
+        ].join('\n'),
+        tool_calls: message.toolCallRequests,
+        providerMetadata: message.providerMetadata,
+      },
+    ]
+  }
+
+  private parseToolMessage({
+    message,
+  }: {
+    message: ChatToolMessage
+  }): RequestMessage[] {
+    return message.toolCalls.map((toolCall) => {
+      switch (toolCall.response.status) {
+        case ToolCallResponseStatus.PendingApproval:
+        case ToolCallResponseStatus.Running:
+        case ToolCallResponseStatus.Rejected:
+        case ToolCallResponseStatus.Aborted:
+          return {
+            role: 'tool',
+            tool_call: toolCall.request,
+            content: `Tool call ${toolCall.request.id} is ${toolCall.response.status}`,
+          }
+        case ToolCallResponseStatus.Success:
+          return {
+            role: 'tool',
+            tool_call: toolCall.request,
+            content: toolCall.response.data.text,
+          }
+        case ToolCallResponseStatus.Error:
+          return {
+            role: 'tool',
+            tool_call: toolCall.request,
+            content: `Error: ${toolCall.response.error}`,
+          }
+      }
+    })
+  }
+
+  private getModelPromptLevel(): PromptLevel {
+    const chatModel = this.settings.chatModels.find(
+      (model) => model.id === this.settings.chatModelId,
+    )
+    return chatModel?.promptLevel ?? PromptLevel.Default
+  }
+}
