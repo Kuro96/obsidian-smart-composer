@@ -1,4 +1,4 @@
-import { normalizeVaultPath } from './vault-utils'
+import { normalizeVaultPath } from './vaultUtils'
 
 class VaultAccessTracker {
   private readonly readsByConversation = new Map<string, Set<string>>()

@@ -1,4 +1,4 @@
-import { ParsedTagContent, parseTagContents } from './parse-tag-content'
+import { ParsedTagContent, parseTagContents } from './parseTagContent'
 
 describe('parseSmtcmpBlocks', () => {
   it('should parse a string with smtcmp_block elements', () => {

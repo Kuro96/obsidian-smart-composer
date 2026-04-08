@@ -15,7 +15,7 @@ import {
   ensureParentDirectory,
   getVaultAdapter,
   normalizeVaultPath,
-} from '../vault-utils'
+} from '../vaultUtils'
 
 export class VaultToolPack {
   constructor(private readonly app: App) {}

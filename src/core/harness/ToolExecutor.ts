@@ -17,7 +17,7 @@ import {
   ensureParentDirectory,
   getVaultAdapter,
   normalizeVaultPath,
-} from '../tools/vault-utils'
+} from '../tools/vaultUtils'
 import {
   ProposedToolReview,
   ToolCallResponse,

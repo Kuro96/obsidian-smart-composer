@@ -18,7 +18,7 @@ import {
   serializeMentionable,
 } from '../../../../../utils/chat/mentionable'
 import { SearchableMentionable } from '../../../../../utils/fuzzy-search'
-import { getMentionableIcon } from '../../utils/get-metionable-icon'
+import { getMentionableIcon } from '../../utils/getMentionableIcon'
 import { MenuOption, MenuTextMatch } from '../shared/LexicalMenu'
 import {
   LexicalTypeaheadMenuPlugin,

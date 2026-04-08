@@ -7,7 +7,7 @@
 import { App, TFile } from 'obsidian'
 
 import type { ToolEntry, ToolRegistry } from '../ToolRegistry'
-import { normalizeVaultPath } from '../vault-utils'
+import { normalizeVaultPath } from '../vaultUtils'
 
 export class WorkspaceToolPack {
   constructor(private readonly app: App) {}

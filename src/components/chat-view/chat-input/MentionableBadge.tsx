@@ -14,7 +14,7 @@ import {
   MentionableVault,
 } from '../../../types/mentionable'
 
-import { getMentionableIcon } from './utils/get-metionable-icon'
+import { getMentionableIcon } from './utils/getMentionableIcon'
 
 function BadgeBase({
   children,

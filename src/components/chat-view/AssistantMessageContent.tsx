@@ -4,7 +4,7 @@ import { ChatAssistantMessage } from '../../types/chat'
 import {
   ParsedTagContent,
   parseTagContents,
-} from '../../utils/chat/parse-tag-content'
+} from '../../utils/chat/parseTagContent'
 
 import AssistantMessageReasoning from './AssistantMessageReasoning'
 import MarkdownCodeComponent from './MarkdownCodeComponent'

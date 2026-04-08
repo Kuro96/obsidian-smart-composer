@@ -1,5 +1,5 @@
 /**
- * vault-utils — 内置工具共享的 Vault 路径与目录工具函数
+ * vaultUtils — 内置工具共享的 Vault 路径与目录工具函数
  * 从 McpManager 中提取，供各 ToolPack 复用。
  */
 
@@ -55,4 +55,3 @@ export async function mkdirRecursive(
     }
   }
 }
-

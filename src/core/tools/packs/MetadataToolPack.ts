@@ -10,7 +10,7 @@
 import { App, TFile } from 'obsidian'
 
 import type { ToolEntry, ToolRegistry } from '../ToolRegistry'
-import { normalizeVaultPath } from '../vault-utils'
+import { normalizeVaultPath } from '../vaultUtils'
 
 // ─── 内部工具函数 ──────────────────────────────────────────────────────────────
 
