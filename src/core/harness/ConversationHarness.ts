@@ -143,90 +143,155 @@ export class ConversationHarness {
     // enableTools=false 时传 null，TurnEngine 不向 LLM 暴露任何工具
     const registry = this.enableTools ? this.builtRegistry : null
 
-    for (let i = 0; i < this.maxAutoIterations; i++) {
-      const allMessages = [
-        ...this.receivedMessages,
-        ...this.responseMessages,
-      ]
+    try {
+      for (let i = 0; i < this.maxAutoIterations; i++) {
+        const allMessages = [
+          ...this.receivedMessages,
+          ...this.responseMessages,
+        ]
 
-      const { toolCallRequests } = await this.turnEngine.run({
-        allMessages,
-        registry,
-        sessionMode: this.sessionMode,
-        abortSignal: this.abortSignal,
-        onMessagesUpdate: (updater) => {
-          this.responseMessages = updater(this.responseMessages)
-          this.notifySubscribers()
-        },
-      })
-
-      // 没有工具调用 → 对话完成
-      if (toolCallRequests.length === 0) {
-        return
-      }
-
-      // 构建工具消息，按权限决定自动执行还是等待审批
-      const toolMessage: ChatToolMessage = {
-        role: 'tool' as const,
-        id: uuidv4(),
-        toolCalls: toolCallRequests.map((req) => ({
-          request: req,
-          response: {
-            status: this.toolExecutor.isAllowed(req.name, this.conversationId)
-              ? ToolCallResponseStatus.Running
-              : ToolCallResponseStatus.PendingApproval,
-          },
-        })),
-      }
-
-      this.responseMessages = [...this.responseMessages, toolMessage]
-      this.notifySubscribers()
-
-      // 并行执行所有允许自动执行的工具
-      await Promise.all(
-        toolMessage.toolCalls
-          .filter((tc) => tc.response.status === ToolCallResponseStatus.Running)
-          .map(async (tc) => {
-            const response = await this.toolExecutor.execute({
-              name: tc.request.name,
-              args: tc.request.arguments,
-              id: tc.request.id,
-              conversationId: this.conversationId,
-              signal: this.abortSignal,
-            })
-            this.responseMessages = this.responseMessages.map((msg) =>
-              msg.id === toolMessage.id && msg.role === 'tool'
-                ? {
-                    ...msg,
-                    toolCalls: msg.toolCalls.map((call) =>
-                      call.request.id === tc.request.id
-                        ? { ...call, response }
-                        : call,
-                    ),
-                  }
-                : msg,
-            )
+        const { toolCallRequests } = await this.turnEngine.run({
+          allMessages,
+          registry,
+          sessionMode: this.sessionMode,
+          abortSignal: this.abortSignal,
+          onMessagesUpdate: (updater) => {
+            this.responseMessages = updater(this.responseMessages)
             this.notifySubscribers()
-          }),
-      )
+          },
+        })
 
-      // 检查是否所有工具都已完成（Success 或 Error）
-      // 如有 PendingApproval 或 Running 的工具，停止迭代，等待用户操作
-      const updatedToolMessage = this.responseMessages.find(
-        (msg) => msg.id === toolMessage.id && msg.role === 'tool',
-      ) as ChatToolMessage | undefined
+        if (toolCallRequests.length === 0) {
+          return
+        }
 
-      const allCompleted = updatedToolMessage?.toolCalls.every((tc) =>
-        [
-          ToolCallResponseStatus.Success,
-          ToolCallResponseStatus.Error,
-        ].includes(tc.response.status),
-      )
+        const toolMessage: ChatToolMessage = {
+          role: 'tool' as const,
+          id: uuidv4(),
+          toolCalls: toolCallRequests.map((req) => ({
+            request: req,
+            response: {
+              status: this.toolExecutor.isAllowed(req.name, this.conversationId)
+                ? ToolCallResponseStatus.Running
+                : ToolCallResponseStatus.PendingApproval,
+            },
+          })),
+        }
 
-      if (!allCompleted) {
+        this.responseMessages = [...this.responseMessages, toolMessage]
+        this.notifySubscribers()
+
+        await this.executeAutoToolCalls(toolMessage)
+
+        const updatedToolMessage = this.responseMessages.find(
+          (msg) => msg.id === toolMessage.id && msg.role === 'tool',
+        ) as ChatToolMessage | undefined
+
+        const allCompleted = updatedToolMessage?.toolCalls.every((tc) =>
+          [
+            ToolCallResponseStatus.Success,
+            ToolCallResponseStatus.Error,
+          ].includes(tc.response.status),
+        )
+
+        if (!allCompleted) {
+          this.closeDanglingToolCalls(ToolCallResponseStatus.Aborted)
+          return
+        }
+      }
+    } catch (error) {
+      if ((error as Error).name === 'AbortError' || this.abortSignal?.aborted) {
+        this.closeDanglingToolCalls(ToolCallResponseStatus.Aborted)
         return
       }
+
+      this.closeDanglingToolCalls(ToolCallResponseStatus.Error)
+      throw error
     }
+  }
+
+  private async executeAutoToolCalls(toolMessage: ChatToolMessage): Promise<void> {
+    const autoExecutableCalls = toolMessage.toolCalls.filter(
+      (tc) => tc.response.status === ToolCallResponseStatus.Running,
+    )
+
+    const parallelCalls = autoExecutableCalls.filter((tc) =>
+      this.isConcurrencySafeReadOnlyTool(tc.request.name),
+    )
+    const serialCalls = autoExecutableCalls.filter(
+      (tc) => !this.isConcurrencySafeReadOnlyTool(tc.request.name),
+    )
+
+    await Promise.all(
+      parallelCalls.map((tc) => this.executeAndUpdateToolCall(toolMessage.id, tc)),
+    )
+
+    for (const tc of serialCalls) {
+      await this.executeAndUpdateToolCall(toolMessage.id, tc)
+    }
+  }
+
+  private async executeAndUpdateToolCall(
+    toolMessageId: string,
+    toolCall: ChatToolMessage['toolCalls'][number],
+  ): Promise<void> {
+    const response = await this.toolExecutor.execute({
+      name: toolCall.request.name,
+      args: toolCall.request.arguments,
+      id: toolCall.request.id,
+      conversationId: this.conversationId,
+      signal: this.abortSignal,
+    })
+
+    this.responseMessages = this.responseMessages.map((msg) =>
+      msg.id === toolMessageId && msg.role === 'tool'
+        ? {
+            ...msg,
+            toolCalls: msg.toolCalls.map((call) =>
+              call.request.id === toolCall.request.id
+                ? { ...call, response }
+                : call,
+            ),
+          }
+        : msg,
+    )
+    this.notifySubscribers()
+  }
+
+  private isConcurrencySafeReadOnlyTool(toolName: string): boolean {
+    const entry = this.builtRegistry.resolve(toolName)
+    return entry?.tier === 'read-only' && entry.source === 'builtin'
+  }
+
+  private closeDanglingToolCalls(
+    status: ToolCallResponseStatus.Aborted | ToolCallResponseStatus.Error,
+  ): void {
+    this.responseMessages = this.responseMessages.map((msg) => {
+      if (msg.role !== 'tool') {
+        return msg
+      }
+
+      return {
+        ...msg,
+        toolCalls: msg.toolCalls.map((toolCall) => {
+          if (toolCall.response.status !== ToolCallResponseStatus.Running) {
+            return toolCall
+          }
+
+          return {
+            ...toolCall,
+            response:
+              status === ToolCallResponseStatus.Aborted
+                ? { status: ToolCallResponseStatus.Aborted }
+                : {
+                    status: ToolCallResponseStatus.Error,
+                    error: 'Tool execution ended without a terminal result.',
+                  },
+          }
+        }),
+      }
+    })
+    this.notifySubscribers()
   }
 
   private notifySubscribers(): void {
