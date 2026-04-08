@@ -8,7 +8,9 @@
  */
 
 import { McpManager } from '../mcp/mcpManager'
+import { vaultAccessTracker } from '../tools/VaultAccessTracker'
 import type { ToolRegistry } from '../tools/ToolRegistry'
+import { normalizeVaultPath } from '../tools/vault-utils'
 import type { ToolPermissionPolicy } from '../policy/types'
 import { ToolCallResponse, ToolCallResponseStatus } from '../../types/tool-call.types'
 
@@ -35,9 +37,10 @@ export class ToolExecutor {
     name: string
     args?: string | Record<string, unknown>
     id?: string
+    conversationId: string
     signal?: AbortSignal
   }): Promise<ToolCallResponse> {
-    const { name, args, id, signal } = opts
+    const { name, args, id, signal, conversationId } = opts
 
     // 解析参数
     const parsedArgs: Record<string, unknown> =
@@ -50,15 +53,27 @@ export class ToolExecutor {
     // 通过 ToolRegistry 查找 handler
     const entry = this.registry.resolve(name)
     if (entry) {
+      const guardedPath = this.getReadRequiredPath(name, parsedArgs)
+      if (guardedPath && !vaultAccessTracker.hasRead(conversationId, guardedPath)) {
+        return {
+          status: ToolCallResponseStatus.Error,
+          error: `${name} requires a prior read of ${guardedPath} in this chat. Read the file first with vault_read or note_frontmatter_get.`,
+        }
+      }
+
       const abortController = new AbortController()
       if (signal) {
         signal.addEventListener('abort', () => abortController.abort())
       }
       try {
         const text = await entry.handler(parsedArgs, {
-          conversationId: '',
+          conversationId,
           signal: abortController.signal,
         })
+        const readPath = this.getReadEvidencePath(name, parsedArgs)
+        if (readPath) {
+          vaultAccessTracker.recordRead(conversationId, readPath)
+        }
         return {
           status: ToolCallResponseStatus.Success,
           data: { type: 'text', text },
@@ -83,5 +98,39 @@ export class ToolExecutor {
    */
   abort(id: string): boolean {
     return this.mcpManager.abortToolCall(id)
+  }
+
+  private getReadEvidencePath(
+    toolName: string,
+    args: Record<string, unknown>,
+  ): string | null {
+    if (toolName !== 'vault_read' && toolName !== 'note_frontmatter_get') {
+      return null
+    }
+
+    const rawPath = args.path
+    return typeof rawPath === 'string' && rawPath.trim().length > 0
+      ? normalizeVaultPath(rawPath)
+      : null
+  }
+
+  private getReadRequiredPath(
+    toolName: string,
+    args: Record<string, unknown>,
+  ): string | null {
+    if (
+      toolName !== 'vault_edit' &&
+      toolName !== 'vault_append' &&
+      toolName !== 'note_frontmatter_set' &&
+      toolName !== 'note_frontmatter_delete' &&
+      toolName !== 'vault_move'
+    ) {
+      return null
+    }
+
+    const rawPath = args.path
+    return typeof rawPath === 'string' && rawPath.trim().length > 0
+      ? normalizeVaultPath(rawPath)
+      : null
   }
 }

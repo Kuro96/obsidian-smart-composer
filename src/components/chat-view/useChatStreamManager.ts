@@ -13,9 +13,13 @@ import {
 } from '../../core/llm/exception'
 import { getChatModelClient } from '../../core/llm/manager'
 import { ConversationHarness } from '../../core/harness/ConversationHarness'
+import { ToolExecutor } from '../../core/harness/ToolExecutor'
 import { ApprovalPolicyImpl } from '../../core/policy/ApprovalPolicyImpl'
+import { ToolPermissionPolicyImpl } from '../../core/policy/ToolPermissionPolicyImpl'
+import { buildToolRegistry } from '../../core/tools/buildToolRegistry'
 import { ChatMessage } from '../../types/chat'
 import { SessionMode } from '../../core/mcp/mcpManager'
+import { ToolCallRequest, ToolCallResponse } from '../../types/tool-call.types'
 import { PromptGenerator } from '../../utils/chat/promptGenerator'
 import { ErrorModal } from '../modals/ErrorModal'
 
@@ -35,6 +39,10 @@ export type UseChatStreamManager = {
   >
   /** 用户在 ToolMessage 中点击"Allow for this chat"时调用，记录会话级批准 */
   allowToolForConversation: (toolName: string, conversationId: string) => void
+  executeToolCall: (
+    request: ToolCallRequest,
+    conversationId: string,
+  ) => Promise<ToolCallResponse>
 }
 
 export function useChatStreamManager({
@@ -194,9 +202,35 @@ export function useChatStreamManager({
     [],
   )
 
+  const executeToolCall = useCallback(
+    async (request: ToolCallRequest, conversationId: string) => {
+      const mcpManager = await getMcpManager()
+      const registry = await buildToolRegistry({
+        app,
+        mcpManager,
+        enableSkills: settings.chatOptions.enableSkills,
+      })
+      const permissionPolicy = new ToolPermissionPolicyImpl(
+        registry,
+        approvalPolicyRef.current,
+        () => settings,
+      )
+      const toolExecutor = new ToolExecutor(registry, permissionPolicy, mcpManager)
+
+      return toolExecutor.execute({
+        name: request.name,
+        args: request.arguments,
+        id: request.id,
+        conversationId,
+      })
+    },
+    [app, getMcpManager, settings],
+  )
+
   return {
     abortActiveStreams,
     submitChatMutation,
     allowToolForConversation,
+    executeToolCall,
   }
 }

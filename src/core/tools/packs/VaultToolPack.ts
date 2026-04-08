@@ -10,6 +10,7 @@
 import { App } from 'obsidian'
 
 import type { ToolEntry, ToolRegistry } from '../ToolRegistry'
+import { vaultAccessTracker } from '../VaultAccessTracker'
 import {
   ensureParentDirectory,
   getVaultAdapter,
@@ -61,7 +62,8 @@ export class VaultToolPack {
       {
         tool: {
           name: 'vault_read',
-          description: 'Read a UTF-8 text file from the vault by vault-relative path.',
+          description:
+            'Read a UTF-8 text file from the vault by vault-relative path. Use this before editing, appending, moving, or overwriting an existing file.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -86,7 +88,7 @@ export class VaultToolPack {
         tool: {
           name: 'vault_write',
           description:
-            'Write UTF-8 text content to a vault-relative file path (full overwrite). Prefer vault_edit for normal file updates. Use vault_write when vault_edit is not suitable (e.g., near-complete rewrite) or when vault_edit fails.',
+            'Write UTF-8 text content to a vault-relative file path (full overwrite). Prefer vault_edit for normal file updates. Use vault_write for new files or near-complete rewrites. Read the existing file first before overwriting it. Do not use this to edit frontmatter; use note_frontmatter_set or note_frontmatter_delete instead.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -103,7 +105,7 @@ export class VaultToolPack {
         tier: 'read-write',
         source: 'builtin',
         approvalRequired: false,
-        handler: async (args) => {
+        handler: async (args, ctx) => {
           const rawPath = args?.path
           const content = args?.content
           if (typeof rawPath !== 'string' || rawPath.trim().length === 0) {
@@ -113,10 +115,17 @@ export class VaultToolPack {
             throw new Error('vault_write requires a string "content"')
           }
           const relativePath = normalizeVaultPath(rawPath)
+          const a = adapter()
+          const exists = a.exists ? await a.exists(relativePath) : false
+          if (exists && !vaultAccessTracker.hasRead(ctx.conversationId, relativePath)) {
+            throw new Error(
+              `vault_write requires a prior read of ${relativePath} in this chat before overwriting it`,
+            )
+          }
           const createDirs =
             typeof args?.createDirectories === 'boolean' ? args.createDirectories : true
-          if (createDirs) await ensureParentDirectory(relativePath, adapter())
-          await adapter().write(relativePath, content)
+          if (createDirs) await ensureParentDirectory(relativePath, a)
+          await a.write(relativePath, content)
           return `Wrote ${content.length} bytes to ${relativePath}`
         },
       },
@@ -125,7 +134,7 @@ export class VaultToolPack {
         tool: {
           name: 'vault_edit',
           description:
-            'Edit part of a UTF-8 text file by replacing oldText with newText. This is the preferred tool for file modifications. Use vault_write only when vault_edit is not suitable (e.g., near-complete rewrite) or after vault_edit fails.',
+            'Edit part of a UTF-8 text file by replacing oldText with newText. This is the preferred tool for normal file modifications after reading the file. Provide specific oldText. Do not use this to edit YAML frontmatter; use note_frontmatter_set or note_frontmatter_delete instead.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -211,7 +220,7 @@ export class VaultToolPack {
         tool: {
           name: 'vault_append',
           description:
-            'Append text to the end of a vault file. Creates the file if it does not exist.',
+            'Append text to the end of a vault file. Creates the file if it does not exist. If the file already exists, read it first so you understand the current ending and formatting.',
           inputSchema: {
             type: 'object',
             properties: {

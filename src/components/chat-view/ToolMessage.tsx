@@ -61,11 +61,16 @@ const ToolMessage = memo(function ToolMessage({
   conversationId,
   onMessageUpdate,
   onAllowToolForConversation,
+  executeToolCall,
 }: {
   message: ChatToolMessage
   conversationId: string
   onMessageUpdate: (message: ChatToolMessage) => void
   onAllowToolForConversation: (toolName: string, conversationId: string) => void
+  executeToolCall: (
+    request: ToolCallRequest,
+    conversationId: string,
+  ) => Promise<ToolCallResponse>
 }) {
   return (
     <div className="smtcmp-toolcall-container">
@@ -79,6 +84,7 @@ const ToolMessage = memo(function ToolMessage({
             response={toolCall.response}
             conversationId={conversationId}
             onAllowToolForConversation={onAllowToolForConversation}
+            executeToolCall={executeToolCall}
             onResponseUpdate={(response) =>
               onMessageUpdate({
                 ...message,
@@ -100,12 +106,17 @@ function ToolCallItem({
   conversationId,
   onResponseUpdate,
   onAllowToolForConversation,
+  executeToolCall,
 }: {
   request: ToolCallRequest
   response: ToolCallResponse
   conversationId: string
   onResponseUpdate: (response: ToolCallResponse) => void
   onAllowToolForConversation: (toolName: string, conversationId: string) => void
+  executeToolCall: (
+    request: ToolCallRequest,
+    conversationId: string,
+  ) => Promise<ToolCallResponse>
 }) {
   const {
     handleToolCall,
@@ -118,6 +129,7 @@ function ToolCallItem({
     conversationId,
     onResponseUpdate,
     onAllowToolForConversation,
+    executeToolCall,
   )
 
   const [isOpen, setIsOpen] = useState(
@@ -266,22 +278,21 @@ function useToolCall(
   conversationId: string,
   onResponseUpdate: (response: ToolCallResponse) => void,
   onAllowToolForConversation: (toolName: string, conversationId: string) => void,
+  executeToolCall: (
+    request: ToolCallRequest,
+    conversationId: string,
+  ) => Promise<ToolCallResponse>,
 ) {
   const { settings, setSettings } = useSettings()
   const { getMcpManager } = useMcp()
 
   const handleToolCall = useCallback(async () => {
-    const mcpManager = await getMcpManager()
     onResponseUpdate({
       status: ToolCallResponseStatus.Running,
     })
-    const toolCallResponse: ToolCallResponse = await mcpManager.callTool({
-      name: request.name,
-      args: request.arguments,
-      id: request.id,
-    })
+    const toolCallResponse = await executeToolCall(request, conversationId)
     onResponseUpdate(toolCallResponse)
-  }, [request, onResponseUpdate, getMcpManager])
+  }, [request, conversationId, onResponseUpdate, executeToolCall])
 
   const handleAllowForConversation = useCallback(async () => {
     // Phase 6：通过 ApprovalPolicy（在 useChatStreamManager 中持有）记录会话级批准，

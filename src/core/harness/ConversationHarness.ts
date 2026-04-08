@@ -181,6 +181,7 @@ export class ConversationHarness {
               name: tc.request.name,
               args: tc.request.arguments,
               id: tc.request.id,
+              conversationId: this.conversationId,
               signal: this.abortSignal,
             })
             this.responseMessages = this.responseMessages.map((msg) =>

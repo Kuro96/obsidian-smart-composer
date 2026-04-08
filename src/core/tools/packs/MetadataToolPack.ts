@@ -81,7 +81,8 @@ export class MetadataToolPack {
       {
         tool: {
           name: 'note_frontmatter_get',
-          description: 'Read the frontmatter (YAML properties) of a specific note as a JSON object.',
+          description:
+            'Read the frontmatter (YAML properties) of a specific note as a JSON object. Use this before changing frontmatter fields.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -111,7 +112,7 @@ export class MetadataToolPack {
         tool: {
           name: 'note_frontmatter_set',
           description:
-            'Atomically update frontmatter fields in a note using Obsidian\'s official processFrontMatter API. Safe for concurrent access. Does not touch the note body.',
+            'Atomically update frontmatter fields in a note using Obsidian\'s official processFrontMatter API. This is the preferred way to change frontmatter and should be used instead of editing YAML manually. Safe for concurrent access and does not touch the note body.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -179,7 +180,8 @@ export class MetadataToolPack {
       {
         tool: {
           name: 'note_frontmatter_delete',
-          description: 'Remove specific keys from a note\'s frontmatter. Uses Obsidian\'s processFrontMatter API.',
+          description:
+            'Remove specific keys from a note\'s frontmatter. Use this instead of editing YAML manually. Uses Obsidian\'s processFrontMatter API.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -219,7 +221,7 @@ export class MetadataToolPack {
         tool: {
           name: 'vault_move',
           description:
-            'Move or rename a vault file or folder. Uses Obsidian\'s fileManager.renameFile() so wiki-links pointing to the file are updated automatically.',
+            'Move or rename a vault file or folder. Read the target first if you need to inspect it, then use this tool for the path change instead of suggesting a manual rename. Uses Obsidian\'s fileManager.renameFile() so wiki-links pointing to the file are updated automatically.',
           inputSchema: {
             type: 'object',
             properties: {

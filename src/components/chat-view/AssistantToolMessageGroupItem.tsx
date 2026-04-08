@@ -3,6 +3,7 @@ import {
   ChatMessage,
   ChatToolMessage,
 } from '../../types/chat'
+import { ToolCallRequest, ToolCallResponse } from '../../types/tool-call.types'
 
 import AssistantMessageAnnotations from './AssistantMessageAnnotations'
 import AssistantMessageContent from './AssistantMessageContent'
@@ -18,6 +19,10 @@ export type AssistantToolMessageGroupItemProps = {
   onApply: (blockToApply: string, chatMessages: ChatMessage[]) => void
   onToolMessageUpdate: (message: ChatToolMessage) => void
   onAllowToolForConversation: (toolName: string, conversationId: string) => void
+  executeToolCall: (
+    request: ToolCallRequest,
+    conversationId: string,
+  ) => Promise<ToolCallResponse>
 }
 
 export default function AssistantToolMessageGroupItem({
@@ -28,6 +33,7 @@ export default function AssistantToolMessageGroupItem({
   onApply,
   onToolMessageUpdate,
   onAllowToolForConversation,
+  executeToolCall,
 }: AssistantToolMessageGroupItemProps) {
   return (
     <div className="smtcmp-assistant-tool-message-group">
@@ -58,6 +64,7 @@ export default function AssistantToolMessageGroupItem({
               conversationId={conversationId}
               onMessageUpdate={onToolMessageUpdate}
               onAllowToolForConversation={onAllowToolForConversation}
+              executeToolCall={executeToolCall}
             />
           </div>
         ),

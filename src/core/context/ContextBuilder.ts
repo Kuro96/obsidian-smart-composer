@@ -109,7 +109,7 @@ ${
   modelPromptLevel == PromptLevel.Default
     ? `4. Respond in the same language as the user's message.
 
-5. If the task requires reading, modifying, moving, deleting, or querying vault content, prefer the corresponding built-in tools over describing manual steps.
+5. Before answering, first check whether a dedicated built-in tool can do the work more directly than plain text. If it can, use the tool.
 
 6. Prefer the most specific tool available for the job:
    - Use \`vault_read\` for reading files.
@@ -119,9 +119,11 @@ ${
    - Use \`vault_move\` for rename or move operations.
    - Use query/search tools before blindly reading many files.
 
-7. When a relevant tool can perform the action, do not ask the user to manually apply edits that you could perform through tools.
+7. Before modifying an existing file, read it first in this conversation. Do not overwrite existing files blindly.
 
-8. If tools are not suitable for the request, provide the smallest useful markdown snippet or explanation. Do not use <smtcmp_block> tags for normal editing responses.
+8. When a relevant tool can perform the action, do not ask the user to manually apply edits that you could perform through tools.
+
+9. If tools are not suitable for the request, provide the smallest useful markdown snippet or explanation. Do not use <smtcmp_block> tags for normal editing responses.
 `
     : ''
 }`
@@ -136,7 +138,7 @@ ${
   modelPromptLevel == PromptLevel.Default
     ? `3. Respond in the same language as the user's message.
 
-4. Use built-in tools whenever the task requires reading, modifying, moving, deleting, or querying vault content.
+4. Before answering, first check whether a dedicated built-in tool can do the work more directly than plain text. If it can, use the tool.
 
 5. Prefer the most specific tool available for the job:
    - Use \`vault_read\` for reading files.
@@ -145,9 +147,11 @@ ${
    - Use \`note_frontmatter_set\` or \`note_frontmatter_delete\` for frontmatter changes.
    - Use \`vault_move\` for rename or move operations.
 
-6. When quoting or summarizing provided markdown snippets, never include any \`line_number|\` prefixes in the output.
+6. Before modifying an existing file, read it first in this conversation. Do not overwrite existing files blindly.
 
-7. If tools are not suitable for the request, provide the smallest useful markdown snippet or explanation. Do not use <smtcmp_block> tags for normal editing responses.`
+7. When quoting or summarizing provided markdown snippets, never include any \`line_number|\` prefixes in the output.
+
+8. If tools are not suitable for the request, provide the smallest useful markdown snippet or explanation. Do not use <smtcmp_block> tags for normal editing responses.`
     : ''
 }`
 
