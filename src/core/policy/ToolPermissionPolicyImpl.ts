@@ -56,10 +56,13 @@ export class ToolPermissionPolicyImpl implements ToolPermissionPolicy {
 
     // 2. 内置工具按 tier 决策
     if (tier !== null) {
-      if (tier === 'danger-zone') return 'ask'
-      if (tier === 'read-only') return 'allow'
-      // read-write：查 policy
-      return this.readWriteDefault()
+      const builtinOverride = this.getBuiltinToolOverride(toolName)
+      if (builtinOverride === 'allow') return 'allow'
+      if (builtinOverride === 'deny') return 'deny'
+
+      if (tier === 'read-only') return this.builtinDefaultPolicy().readOnlyDefault
+      if (tier === 'danger-zone') return this.builtinDefaultPolicy().dangerousDefault
+      return this.builtinDefaultPolicy().readWriteDefault
     }
 
     // 3. 外部 MCP 工具：查 server.toolOptions.allowAutoExecution
@@ -95,12 +98,43 @@ export class ToolPermissionPolicyImpl implements ToolPermissionPolicy {
   }
 
   private readWriteDefault(): ApprovalDecision {
+    return this.builtinDefaultPolicy().readWriteDefault
+  }
+
+  private builtinDefaultPolicy(): {
+    readOnlyDefault: ApprovalDecision
+    readWriteDefault: ApprovalDecision
+    dangerousDefault: ApprovalDecision
+  } {
     const settings = this.getSettings()
-    // 新字段优先
-    const newPolicy = (settings.mcp as { builtin?: { policy?: { readWriteDefault?: ApprovalDecision } } })
-      .builtin?.policy?.readWriteDefault
-    if (newPolicy) return newPolicy
-    // 向后兼容旧字段
-    return settings.chatOptions.defaultAllowBuiltinReadWrite ? 'allow' : 'ask'
+    const builtinPolicy = (settings.mcp as {
+      builtin?: {
+        policy?: {
+          readOnlyDefault?: ApprovalDecision
+          readWriteDefault?: ApprovalDecision
+          dangerousDefault?: ApprovalDecision
+        }
+      }
+    }).builtin?.policy
+
+    return {
+      readOnlyDefault: builtinPolicy?.readOnlyDefault ?? 'allow',
+      readWriteDefault:
+        builtinPolicy?.readWriteDefault ??
+        (settings.chatOptions.defaultAllowBuiltinReadWrite ? 'allow' : 'ask'),
+      dangerousDefault: builtinPolicy?.dangerousDefault ?? 'ask',
+    }
+  }
+
+  private getBuiltinToolOverride(toolName: string): ApprovalDecision | null {
+    const settings = this.getSettings()
+    const option = (settings.mcp as {
+      builtin?: {
+        toolOptions?: Record<string, { autoExecute?: boolean }>
+      }
+    }).builtin?.toolOptions?.[toolName]
+
+    if (option?.autoExecute === true) return 'allow'
+    return null
   }
 }

@@ -13,6 +13,12 @@ import { App } from 'obsidian'
 import { useCallback, useEffect, useState } from 'react'
 
 import { useSettings } from '../../../contexts/settings-context'
+import {
+  BUILTIN_DANGER_ZONE_TOOLS,
+  BUILTIN_READ_ONLY_TOOLS,
+  BUILTIN_READ_WRITE_TOOLS,
+  getBuiltinToolTier,
+} from '../../../core/mcp/builtin-tool-tiers'
 import { McpManager } from '../../../core/mcp/mcpManager'
 import SmartComposerPlugin from '../../../main'
 import {
@@ -27,6 +33,7 @@ import {
   AddMcpServerModal,
   EditMcpServerModal,
 } from '../modals/McpServerFormModal'
+import { ApprovalDecision } from '../../../core/policy/types'
 
 type McpSectionProps = {
   app: App
@@ -445,8 +452,101 @@ function McpConnectedToolRow({
 }
 
 function McpBuiltInWorkbench({ tools }: { tools: McpTool[] }) {
+  const { settings, setSettings } = useSettings()
+  const builtinPolicy = settings.mcp.builtin?.policy
+  const builtinToolOptions = settings.mcp.builtin?.toolOptions ?? {}
+
+  const setBuiltinPolicy = (key: 'readOnlyDefault' | 'readWriteDefault' | 'dangerousDefault', value: ApprovalDecision) => {
+    void setSettings({
+      ...settings,
+      mcp: {
+        ...settings.mcp,
+        builtin: {
+          ...settings.mcp.builtin,
+          policy: {
+            readOnlyDefault: builtinPolicy?.readOnlyDefault ?? 'allow',
+            readWriteDefault: builtinPolicy?.readWriteDefault ?? 'ask',
+            dangerousDefault: builtinPolicy?.dangerousDefault ?? 'ask',
+            [key]: value,
+          },
+          toolOptions: builtinToolOptions,
+        },
+      },
+    })
+  }
+
+  const setBuiltinAutoExecute = (toolName: string, autoExecute: boolean) => {
+    void setSettings({
+      ...settings,
+      mcp: {
+        ...settings.mcp,
+        builtin: {
+          ...settings.mcp.builtin,
+          policy: {
+            readOnlyDefault: builtinPolicy?.readOnlyDefault ?? 'allow',
+            readWriteDefault: builtinPolicy?.readWriteDefault ?? 'ask',
+            dangerousDefault: builtinPolicy?.dangerousDefault ?? 'ask',
+          },
+          toolOptions: {
+            ...builtinToolOptions,
+            [toolName]: {
+              ...builtinToolOptions[toolName],
+              autoExecute,
+            },
+          },
+        },
+      },
+    })
+  }
+
+  const highlightedTools = tools.filter((tool) =>
+    [
+      'vault_write',
+      'vault_edit',
+      'note_frontmatter_set',
+      'vault_move',
+      'command_execute',
+      'vault_delete',
+    ].includes(tool.name),
+  )
+
   return (
     <div className="smtcmp-mcp-tool-table smtcmp-mcp-tool-table--builtin">
+      <div className="smtcmp-mcp-tool-detail-controls" style={{ marginBottom: '1rem' }}>
+        <McpBuiltinPolicyCard
+          title="Read-only default"
+          description={`Default behavior for read-only built-in tools (${BUILTIN_READ_ONLY_TOOLS.length} tools).`}
+          value={builtinPolicy?.readOnlyDefault ?? 'allow'}
+          onChange={(value) => setBuiltinPolicy('readOnlyDefault', value)}
+        />
+        <McpBuiltinPolicyCard
+          title="Read/write default"
+          description={`Default behavior for normal write tools (${BUILTIN_READ_WRITE_TOOLS.length} tools).`}
+          value={builtinPolicy?.readWriteDefault ?? 'ask'}
+          onChange={(value) => setBuiltinPolicy('readWriteDefault', value)}
+        />
+        <McpBuiltinPolicyCard
+          title="Danger-zone default"
+          description={`Default behavior for destructive tools (${BUILTIN_DANGER_ZONE_TOOLS.length} tools).`}
+          value={builtinPolicy?.dangerousDefault ?? 'ask'}
+          onChange={(value) => setBuiltinPolicy('dangerousDefault', value)}
+        />
+      </div>
+
+      {highlightedTools.length > 0 && (
+        <div className="smtcmp-mcp-tool-detail-controls" style={{ marginBottom: '1rem' }}>
+          {highlightedTools.map((tool) => (
+            <McpToolControlCard
+              key={tool.name}
+              title={tool.name}
+              description={`Override the default policy for this ${getBuiltinToolTier(tool.name) ?? 'builtin'} tool and let Smart Composer auto-execute it without pausing first.`}
+              value={builtinToolOptions[tool.name]?.autoExecute ?? false}
+              onChange={(value) => setBuiltinAutoExecute(tool.name, value)}
+            />
+          ))}
+        </div>
+      )}
+
       <div className="smtcmp-mcp-tool-table-header smtcmp-mcp-tool-table-header--builtin">
         <div>Tool</div>
       </div>
@@ -455,6 +555,37 @@ function McpBuiltInWorkbench({ tools }: { tools: McpTool[] }) {
           <div className="smtcmp-mcp-tool-name">{tool.name}</div>
         </div>
       ))}
+    </div>
+  )
+}
+
+function McpBuiltinPolicyCard({
+  title,
+  description,
+  value,
+  onChange,
+}: {
+  title: string
+  description: string
+  value: ApprovalDecision
+  onChange: (value: ApprovalDecision) => void
+}) {
+  return (
+    <div className="smtcmp-mcp-tool-control-card">
+      <div className="smtcmp-mcp-tool-control-copy">
+        <div className="smtcmp-mcp-tool-control-title">{title}</div>
+        <div className="smtcmp-mcp-tool-control-desc">{description}</div>
+      </div>
+      <div className="smtcmp-mcp-tool-control-toggle">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value as ApprovalDecision)}
+        >
+          <option value="allow">Allow</option>
+          <option value="ask">Ask</option>
+          <option value="deny">Deny</option>
+        </select>
+      </div>
     </div>
   )
 }
