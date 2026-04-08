@@ -16,6 +16,7 @@ import { BaseLLMProvider } from '../llm/base'
 import { McpManager, SessionMode } from '../mcp/mcpManager'
 import { ApprovalPolicyImpl } from '../policy/ApprovalPolicyImpl'
 import { ToolPermissionPolicyImpl } from '../policy/ToolPermissionPolicyImpl'
+import type { ApprovalPolicy } from '../policy/types'
 import { buildToolRegistry } from '../tools/buildToolRegistry'
 import type { ToolRegistry } from '../tools/ToolRegistry'
 import { ToolRegistryImpl } from '../tools/ToolRegistryImpl'
@@ -44,6 +45,8 @@ export type ConversationHarnessParams = {
   mcpManager: McpManager
   /** 用于 ToolPermissionPolicy 读取当前设置（工具自动执行策略等） */
   getSettings: () => SmartComposerSettings
+  /** 可选：外部传入的 ApprovalPolicy（跨 harness 实例共享会话级批准） */
+  approvalPolicy?: ApprovalPolicy
   abortSignal?: AbortSignal
 }
 
@@ -79,7 +82,8 @@ export class ConversationHarness {
     this.mcpManager = params.mcpManager
 
     // 初始化占位（run() 调用前会被替换）
-    const approvalPolicy = new ApprovalPolicyImpl()
+    // 优先使用外部传入的 approvalPolicy（跨 harness 持久化），否则创建本地实例
+    const approvalPolicy = params.approvalPolicy ?? new ApprovalPolicyImpl()
     const emptyRegistry = new ToolRegistryImpl()
     const emptyPermissionPolicy = new ToolPermissionPolicyImpl(
       emptyRegistry,

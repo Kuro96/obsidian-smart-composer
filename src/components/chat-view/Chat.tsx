@@ -146,7 +146,7 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
     scrollContainerRef: chatMessagesRef,
   })
 
-  const { abortActiveStreams, submitChatMutation } = useChatStreamManager({
+  const { abortActiveStreams, submitChatMutation, allowToolForConversation } = useChatStreamManager({
     setChatMessages,
     autoScrollToBottom,
     promptGenerator,
@@ -708,6 +708,7 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
               isApplying={applyMutation.isPending}
               onApply={handleApply}
               onToolMessageUpdate={handleToolMessageUpdate}
+              onAllowToolForConversation={allowToolForConversation}
             />
           ),
         )}

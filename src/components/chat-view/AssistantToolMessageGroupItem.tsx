@@ -17,6 +17,7 @@ export type AssistantToolMessageGroupItemProps = {
   isApplying: boolean // TODO: isApplying should be a boolean for each assistant message
   onApply: (blockToApply: string, chatMessages: ChatMessage[]) => void
   onToolMessageUpdate: (message: ChatToolMessage) => void
+  onAllowToolForConversation: (toolName: string, conversationId: string) => void
 }
 
 export default function AssistantToolMessageGroupItem({
@@ -26,6 +27,7 @@ export default function AssistantToolMessageGroupItem({
   isApplying,
   onApply,
   onToolMessageUpdate,
+  onAllowToolForConversation,
 }: AssistantToolMessageGroupItemProps) {
   return (
     <div className="smtcmp-assistant-tool-message-group">
@@ -55,6 +57,7 @@ export default function AssistantToolMessageGroupItem({
               message={message}
               conversationId={conversationId}
               onMessageUpdate={onToolMessageUpdate}
+              onAllowToolForConversation={onAllowToolForConversation}
             />
           </div>
         ),

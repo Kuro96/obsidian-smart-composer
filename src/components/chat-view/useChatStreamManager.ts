@@ -13,6 +13,7 @@ import {
 } from '../../core/llm/exception'
 import { getChatModelClient } from '../../core/llm/manager'
 import { ConversationHarness } from '../../core/harness/ConversationHarness'
+import { ApprovalPolicyImpl } from '../../core/policy/ApprovalPolicyImpl'
 import { ChatMessage } from '../../types/chat'
 import { SessionMode } from '../../core/mcp/mcpManager'
 import { PromptGenerator } from '../../utils/chat/promptGenerator'
@@ -32,6 +33,8 @@ export type UseChatStreamManager = {
     Error,
     { chatMessages: ChatMessage[]; conversationId: string }
   >
+  /** 用户在 ToolMessage 中点击"Allow for this chat"时调用，记录会话级批准 */
+  allowToolForConversation: (toolName: string, conversationId: string) => void
 }
 
 export function useChatStreamManager({
@@ -45,6 +48,8 @@ export function useChatStreamManager({
   const { getMcpManager } = useMcp()
 
   const activeStreamAbortControllersRef = useRef<AbortController[]>([])
+  // ApprovalPolicy 在 hook 生命周期内保持稳定，跨 ConversationHarness 实例持久化会话级批准
+  const approvalPolicyRef = useRef(new ApprovalPolicyImpl())
 
   const abortActiveStreams = useCallback(() => {
     for (const abortController of activeStreamAbortControllersRef.current) {
@@ -125,6 +130,7 @@ export function useChatStreamManager({
           promptGenerator,
           mcpManager,
           getSettings: () => capturedSettings,
+          approvalPolicy: approvalPolicyRef.current,
           abortSignal: abortController.signal,
         })
 
@@ -181,8 +187,16 @@ export function useChatStreamManager({
     },
   })
 
+  const allowToolForConversation = useCallback(
+    (toolName: string, conversationId: string) => {
+      approvalPolicyRef.current.setConversationApproval(toolName, conversationId)
+    },
+    [],
+  )
+
   return {
     abortActiveStreams,
     submitChatMutation,
+    allowToolForConversation,
   }
 }

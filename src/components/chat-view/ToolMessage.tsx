@@ -60,10 +60,12 @@ const ToolMessage = memo(function ToolMessage({
   message,
   conversationId,
   onMessageUpdate,
+  onAllowToolForConversation,
 }: {
   message: ChatToolMessage
   conversationId: string
   onMessageUpdate: (message: ChatToolMessage) => void
+  onAllowToolForConversation: (toolName: string, conversationId: string) => void
 }) {
   return (
     <div className="smtcmp-toolcall-container">
@@ -76,6 +78,7 @@ const ToolMessage = memo(function ToolMessage({
             request={toolCall.request}
             response={toolCall.response}
             conversationId={conversationId}
+            onAllowToolForConversation={onAllowToolForConversation}
             onResponseUpdate={(response) =>
               onMessageUpdate({
                 ...message,
@@ -96,11 +99,13 @@ function ToolCallItem({
   response,
   conversationId,
   onResponseUpdate,
+  onAllowToolForConversation,
 }: {
   request: ToolCallRequest
   response: ToolCallResponse
   conversationId: string
   onResponseUpdate: (response: ToolCallResponse) => void
+  onAllowToolForConversation: (toolName: string, conversationId: string) => void
 }) {
   const {
     handleToolCall,
@@ -108,7 +113,12 @@ function ToolCallItem({
     handleAllowAutoExecution,
     handleReject,
     handleAbort,
-  } = useToolCall(request, conversationId, onResponseUpdate)
+  } = useToolCall(
+    request,
+    conversationId,
+    onResponseUpdate,
+    onAllowToolForConversation,
+  )
 
   const [isOpen, setIsOpen] = useState(
     // Open by default if the tool call requires approval
@@ -255,6 +265,7 @@ function useToolCall(
   request: ToolCallRequest,
   conversationId: string,
   onResponseUpdate: (response: ToolCallResponse) => void,
+  onAllowToolForConversation: (toolName: string, conversationId: string) => void,
 ) {
   const { settings, setSettings } = useSettings()
   const { getMcpManager } = useMcp()
@@ -273,9 +284,10 @@ function useToolCall(
   }, [request, onResponseUpdate, getMcpManager])
 
   const handleAllowForConversation = useCallback(async () => {
-    const mcpManager = await getMcpManager()
-    mcpManager.allowToolForConversation(request.name, conversationId)
-  }, [request, conversationId, getMcpManager])
+    // Phase 6：通过 ApprovalPolicy（在 useChatStreamManager 中持有）记录会话级批准，
+    // 不再调用 mcpManager.allowToolForConversation()
+    onAllowToolForConversation(request.name, conversationId)
+  }, [request, conversationId, onAllowToolForConversation])
 
   const handleAllowAutoExecution = useCallback(async () => {
     const { serverName, toolName } = parseToolName(request.name)

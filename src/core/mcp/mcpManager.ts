@@ -69,7 +69,6 @@ export class McpManager {
 
   private servers: McpServerState[] = [] // IMPORTANT: Always use this.updateServers() to update this array
   private activeToolCalls: Map<string, AbortController> = new Map()
-  private allowedToolsByConversation: Map<string, Set<string>> = new Map()
   private subscribers = new Set<(servers: McpServerState[]) => void>()
 
   private availableToolsCache: McpTool[] | null = null
@@ -399,65 +398,6 @@ export class McpManager {
       return this.skillManager.listAll()
     }
     return this.skillManager.list()
-  }
-
-  public allowToolForConversation(
-    requestToolName: string,
-    conversationId: string,
-  ): void {
-    let allowedTools = this.allowedToolsByConversation.get(conversationId)
-    if (!allowedTools) {
-      allowedTools = new Set<string>()
-      this.allowedToolsByConversation.set(conversationId, allowedTools)
-    }
-    allowedTools.add(requestToolName)
-  }
-
-  public isToolExecutionAllowed({
-    requestToolName,
-    conversationId,
-  }: {
-    requestToolName: string
-    conversationId?: string
-  }): boolean {
-    // Conversation-level explicit allowlist takes priority
-    if (conversationId) {
-      if (
-        this.allowedToolsByConversation
-          .get(conversationId)
-          ?.has(requestToolName)
-      ) {
-        return true
-      }
-    }
-
-    // Built-in vault tool: decide by tier
-    const tier = getBuiltinToolTier(requestToolName)
-    if (tier !== null) {
-      if (tier === 'danger-zone') return false // always require explicit approval
-      if (tier === 'read-only') return true // safe to auto-execute
-      // read-write tier: respect the user's global preference
-      return this.settings.chatOptions.defaultAllowBuiltinReadWrite ?? false
-    }
-
-    // External MCP server tool: check server-level allowAutoExecution flag
-    try {
-      const { serverName, toolName } = parseToolName(requestToolName)
-      const server = this.servers.find((server) => server.name === serverName)
-      if (!server) {
-        return false
-      }
-      const toolOption = server.config.toolOptions[toolName]
-      if (!toolOption) {
-        return false
-      }
-      return toolOption.allowAutoExecution ?? false
-    } catch (error) {
-      if (error instanceof InvalidToolNameException) {
-        return false
-      }
-      throw error
-    }
   }
 
   public async callTool({
