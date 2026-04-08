@@ -81,6 +81,31 @@ export class ToolExecutor {
         }
       }
 
+      if (name === 'vault_edit') {
+        try {
+          const proposal = await this.buildVaultEditProposal(parsedArgs)
+          const response = await this.applyReview({
+            proposal,
+            conversationId,
+          })
+          if (response.status === ToolCallResponseStatus.Success) {
+            return {
+              status: ToolCallResponseStatus.Success,
+              data: {
+                ...response.data,
+                proposal,
+              },
+            }
+          }
+          return response
+        } catch (error) {
+          return {
+            status: ToolCallResponseStatus.Error,
+            error: (error as Error).message || 'Unknown error occurred',
+          }
+        }
+      }
+
       if (this.shouldStageReview(name)) {
         try {
           return {

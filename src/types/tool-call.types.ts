@@ -30,6 +30,7 @@ export type ToolCallResponse =
       data: {
         type: 'text'
         text: string
+        proposal?: ProposedToolReview
       }
     }
   | {

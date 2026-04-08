@@ -10,6 +10,7 @@ import {
 import { memo, useCallback, useMemo, useState } from 'react'
 
 import { useMcp } from '../../contexts/mcp-context'
+import { usePlugin } from '../../contexts/plugin-context'
 import { useSettings } from '../../contexts/settings-context'
 import { getBuiltinToolTier } from '../../core/mcp/builtin-tool-tiers'
 import { InvalidToolNameException } from '../../core/mcp/exception'
@@ -169,6 +170,7 @@ function ToolCallItem({
   }, [request.name])
   const canAutoAllow = !!serverName
   const isDangerZone = getBuiltinToolTier(request.name) === 'danger-zone'
+  const plugin = usePlugin()
   const parameters = useMemo(() => {
     if (!request.arguments) {
       return 'No parameters'
@@ -226,6 +228,10 @@ function ToolCallItem({
           {response.status === ToolCallResponseStatus.PendingReview && (
             <ReviewProposal proposal={response.proposal} />
           )}
+          {response.status === ToolCallResponseStatus.Success &&
+            response.data.proposal && (
+              <ReviewProposal proposal={response.data.proposal} />
+            )}
         </div>
       )}
       {isDangerZone &&
@@ -240,7 +246,9 @@ function ToolCallItem({
         )}
       {((response.status === ToolCallResponseStatus.PendingApproval ||
         response.status === ToolCallResponseStatus.PendingReview) ||
-        response.status === ToolCallResponseStatus.Running) && (
+        response.status === ToolCallResponseStatus.Running ||
+        (response.status === ToolCallResponseStatus.Success &&
+          !!response.data.proposal)) && (
         <div className="smtcmp-toolcall-footer">
           {response.status === ToolCallResponseStatus.PendingApproval && (
             <div className="smtcmp-toolcall-footer-actions">
@@ -282,6 +290,9 @@ function ToolCallItem({
           )}
           {response.status === ToolCallResponseStatus.PendingReview && (
             <div className="smtcmp-toolcall-footer-actions">
+              <button onClick={() => plugin.openReviewView(response.proposal)}>
+                Open review
+              </button>
               <button
                 onClick={() => {
                   handleApplyReviewed(response.proposal)
@@ -305,6 +316,14 @@ function ToolCallItem({
               <button onClick={handleAbort}>Abort</button>
             </div>
           )}
+          {response.status === ToolCallResponseStatus.Success &&
+            response.data.proposal && (
+              <div className="smtcmp-toolcall-footer-actions">
+                <button onClick={() => plugin.openReviewView(response.data.proposal!)}>
+                  Open review
+                </button>
+              </div>
+            )}
         </div>
       )}
     </div>

@@ -3,6 +3,7 @@ import { EmbeddingModel } from './types/embedding-model.types'
 import { LLMProvider, LLMProviderType } from './types/provider.types'
 
 export const CHAT_VIEW_TYPE = 'smtcmp-chat-view'
+export const REVIEW_VIEW_TYPE = 'smtcmp-review-view'
 
 export const PGLITE_DB_PATH = '.smtcmp_vector_db.tar.gz'
 
