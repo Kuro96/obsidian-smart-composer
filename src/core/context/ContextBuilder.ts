@@ -311,6 +311,7 @@ ${message.annotations
     return message.toolCalls.map((toolCall) => {
       switch (toolCall.response.status) {
         case ToolCallResponseStatus.PendingApproval:
+        case ToolCallResponseStatus.PendingReview:
         case ToolCallResponseStatus.Running:
         case ToolCallResponseStatus.Rejected:
         case ToolCallResponseStatus.Aborted:

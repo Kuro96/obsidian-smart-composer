@@ -4,12 +4,26 @@ export type ToolCallRequest = {
   arguments?: string
 }
 
+export type ProposedToolReview = {
+  toolName: string
+  targetPath: string
+  kind: 'write' | 'edit' | 'append' | 'frontmatter' | 'move' | 'delete'
+  summary: string
+  beforeText?: string
+  afterText?: string
+  metadata?: Record<string, unknown>
+}
+
 export type ToolCallResponse =
   | {
       status:
         | ToolCallResponseStatus.PendingApproval
         | ToolCallResponseStatus.Rejected
         | ToolCallResponseStatus.Running
+    }
+  | {
+      status: ToolCallResponseStatus.PendingReview
+      proposal: ProposedToolReview
     }
   | {
       status: ToolCallResponseStatus.Success
@@ -28,6 +42,7 @@ export type ToolCallResponse =
 
 export enum ToolCallResponseStatus {
   PendingApproval = 'pending_approval',
+  PendingReview = 'pending_review',
   Rejected = 'rejected',
   Running = 'running',
   Success = 'success',

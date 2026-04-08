@@ -90,7 +90,12 @@ export class ConversationHarness {
       approvalPolicy,
       params.getSettings,
     )
-    this.toolExecutor = new ToolExecutor(emptyRegistry, emptyPermissionPolicy, params.mcpManager)
+    this.toolExecutor = new ToolExecutor(
+      emptyRegistry,
+      emptyPermissionPolicy,
+      params.mcpManager,
+      params.app,
+    )
 
     // 异步构建 registry，完成后创建真正的 policy 和 executor
     this.registryReady = buildToolRegistry({
@@ -104,7 +109,12 @@ export class ConversationHarness {
         approvalPolicy,
         params.getSettings,
       )
-      this.toolExecutor = new ToolExecutor(registry, permissionPolicy, params.mcpManager)
+      this.toolExecutor = new ToolExecutor(
+        registry,
+        permissionPolicy,
+        params.mcpManager,
+        params.app,
+      )
     })
 
     this.turnEngine = new TurnEngine({

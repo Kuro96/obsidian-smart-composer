@@ -19,7 +19,11 @@ import { ToolPermissionPolicyImpl } from '../../core/policy/ToolPermissionPolicy
 import { buildToolRegistry } from '../../core/tools/buildToolRegistry'
 import { ChatMessage } from '../../types/chat'
 import { SessionMode } from '../../core/mcp/mcpManager'
-import { ToolCallRequest, ToolCallResponse } from '../../types/tool-call.types'
+import {
+  ProposedToolReview,
+  ToolCallRequest,
+  ToolCallResponse,
+} from '../../types/tool-call.types'
 import { PromptGenerator } from '../../utils/chat/promptGenerator'
 import { ErrorModal } from '../modals/ErrorModal'
 
@@ -41,6 +45,10 @@ export type UseChatStreamManager = {
   allowToolForConversation: (toolName: string, conversationId: string) => void
   executeToolCall: (
     request: ToolCallRequest,
+    conversationId: string,
+  ) => Promise<ToolCallResponse>
+  applyReviewedToolCall: (
+    proposal: ProposedToolReview,
     conversationId: string,
   ) => Promise<ToolCallResponse>
 }
@@ -215,7 +223,12 @@ export function useChatStreamManager({
         approvalPolicyRef.current,
         () => settings,
       )
-      const toolExecutor = new ToolExecutor(registry, permissionPolicy, mcpManager)
+      const toolExecutor = new ToolExecutor(
+        registry,
+        permissionPolicy,
+        mcpManager,
+        app,
+      )
 
       return toolExecutor.execute({
         name: request.name,
@@ -227,10 +240,39 @@ export function useChatStreamManager({
     [app, getMcpManager, settings],
   )
 
+  const applyReviewedToolCall = useCallback(
+    async (proposal: ProposedToolReview, conversationId: string) => {
+      const mcpManager = await getMcpManager()
+      const registry = await buildToolRegistry({
+        app,
+        mcpManager,
+        enableSkills: settings.chatOptions.enableSkills,
+      })
+      const permissionPolicy = new ToolPermissionPolicyImpl(
+        registry,
+        approvalPolicyRef.current,
+        () => settings,
+      )
+      const toolExecutor = new ToolExecutor(
+        registry,
+        permissionPolicy,
+        mcpManager,
+        app,
+      )
+
+      return toolExecutor.applyReview({
+        proposal,
+        conversationId,
+      })
+    },
+    [app, getMcpManager, settings],
+  )
+
   return {
     abortActiveStreams,
     submitChatMutation,
     allowToolForConversation,
     executeToolCall,
+    applyReviewedToolCall,
   }
 }

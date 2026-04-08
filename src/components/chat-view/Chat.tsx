@@ -139,6 +139,7 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
     submitChatMutation,
     allowToolForConversation,
     executeToolCall,
+    applyReviewedToolCall,
   } = useChatStreamManager({
     setChatMessages,
     autoScrollToBottom,
@@ -627,6 +628,7 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
               onToolMessageUpdate={handleToolMessageUpdate}
               onAllowToolForConversation={allowToolForConversation}
               executeToolCall={executeToolCall}
+              applyReviewedToolCall={applyReviewedToolCall}
             />
           ),
         )}

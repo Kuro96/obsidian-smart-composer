@@ -16,6 +16,7 @@ import { InvalidToolNameException } from '../../core/mcp/exception'
 import { parseToolName } from '../../core/mcp/tool-name-utils'
 import { ChatToolMessage } from '../../types/chat'
 import {
+  ProposedToolReview,
   ToolCallRequest,
   ToolCallResponse,
   ToolCallResponseStatus,
@@ -23,9 +24,11 @@ import {
 import { SplitButton } from '../common/SplitButton'
 
 import { ObsidianCodeBlock } from './ObsidianMarkdown'
+import { createDiffBlocks } from '../../utils/chat/diff'
 
 const STATUS_LABELS: Record<ToolCallResponseStatus, string> = {
   [ToolCallResponseStatus.PendingApproval]: 'Call',
+  [ToolCallResponseStatus.PendingReview]: 'Review',
   [ToolCallResponseStatus.Rejected]: 'Rejected',
   [ToolCallResponseStatus.Running]: 'Running',
   [ToolCallResponseStatus.Success]: 'Called',
@@ -62,6 +65,7 @@ const ToolMessage = memo(function ToolMessage({
   onMessageUpdate,
   onAllowToolForConversation,
   executeToolCall,
+  applyReviewedToolCall,
 }: {
   message: ChatToolMessage
   conversationId: string
@@ -69,6 +73,10 @@ const ToolMessage = memo(function ToolMessage({
   onAllowToolForConversation: (toolName: string, conversationId: string) => void
   executeToolCall: (
     request: ToolCallRequest,
+    conversationId: string,
+  ) => Promise<ToolCallResponse>
+  applyReviewedToolCall: (
+    proposal: ProposedToolReview,
     conversationId: string,
   ) => Promise<ToolCallResponse>
 }) {
@@ -85,6 +93,7 @@ const ToolMessage = memo(function ToolMessage({
             conversationId={conversationId}
             onAllowToolForConversation={onAllowToolForConversation}
             executeToolCall={executeToolCall}
+            applyReviewedToolCall={applyReviewedToolCall}
             onResponseUpdate={(response) =>
               onMessageUpdate({
                 ...message,
@@ -107,6 +116,7 @@ function ToolCallItem({
   onResponseUpdate,
   onAllowToolForConversation,
   executeToolCall,
+  applyReviewedToolCall,
 }: {
   request: ToolCallRequest
   response: ToolCallResponse
@@ -117,6 +127,10 @@ function ToolCallItem({
     request: ToolCallRequest,
     conversationId: string,
   ) => Promise<ToolCallResponse>
+  applyReviewedToolCall: (
+    proposal: ProposedToolReview,
+    conversationId: string,
+  ) => Promise<ToolCallResponse>
 }) {
   const {
     handleToolCall,
@@ -124,17 +138,20 @@ function ToolCallItem({
     handleAllowAutoExecution,
     handleReject,
     handleAbort,
+    handleApplyReviewed,
   } = useToolCall(
     request,
     conversationId,
     onResponseUpdate,
     onAllowToolForConversation,
     executeToolCall,
+    applyReviewedToolCall,
   )
 
   const [isOpen, setIsOpen] = useState(
     // Open by default if the tool call requires approval
-    response.status === ToolCallResponseStatus.PendingApproval,
+    response.status === ToolCallResponseStatus.PendingApproval ||
+      response.status === ToolCallResponseStatus.PendingReview,
   )
 
   const { serverName, toolName } = useMemo(() => {
@@ -206,6 +223,9 @@ function ToolCallItem({
               <ObsidianCodeBlock content={response.error} />
             </div>
           )}
+          {response.status === ToolCallResponseStatus.PendingReview && (
+            <ReviewProposal proposal={response.proposal} />
+          )}
         </div>
       )}
       {isDangerZone &&
@@ -218,7 +238,8 @@ function ToolCallItem({
             </span>
           </div>
         )}
-      {(response.status === ToolCallResponseStatus.PendingApproval ||
+      {((response.status === ToolCallResponseStatus.PendingApproval ||
+        response.status === ToolCallResponseStatus.PendingReview) ||
         response.status === ToolCallResponseStatus.Running) && (
         <div className="smtcmp-toolcall-footer">
           {response.status === ToolCallResponseStatus.PendingApproval && (
@@ -262,6 +283,26 @@ function ToolCallItem({
               </button>
             </div>
           )}
+          {response.status === ToolCallResponseStatus.PendingReview && (
+            <div className="smtcmp-toolcall-footer-actions">
+              <button
+                onClick={() => {
+                  handleApplyReviewed(response.proposal)
+                  setIsOpen(false)
+                }}
+              >
+                Apply
+              </button>
+              <button
+                onClick={() => {
+                  handleReject()
+                  setIsOpen(false)
+                }}
+              >
+                Reject
+              </button>
+            </div>
+          )}
           {response.status === ToolCallResponseStatus.Running && (
             <div className="smtcmp-toolcall-footer-actions">
               <button onClick={handleAbort}>Abort</button>
@@ -280,6 +321,10 @@ function useToolCall(
   onAllowToolForConversation: (toolName: string, conversationId: string) => void,
   executeToolCall: (
     request: ToolCallRequest,
+    conversationId: string,
+  ) => Promise<ToolCallResponse>,
+  applyReviewedToolCall: (
+    proposal: ProposedToolReview,
     conversationId: string,
   ) => Promise<ToolCallResponse>,
 ) {
@@ -349,18 +394,67 @@ function useToolCall(
     })
   }, [request, onResponseUpdate, getMcpManager])
 
+  const handleApplyReviewed = useCallback(
+    async (proposal: ProposedToolReview) => {
+      onResponseUpdate({
+        status: ToolCallResponseStatus.Running,
+      })
+      const toolCallResponse = await applyReviewedToolCall(proposal, conversationId)
+      onResponseUpdate(toolCallResponse)
+    },
+    [applyReviewedToolCall, conversationId, onResponseUpdate],
+  )
+
   return {
     handleToolCall,
     handleAllowForConversation,
     handleAllowAutoExecution,
     handleReject,
     handleAbort,
+    handleApplyReviewed,
   }
+}
+
+function ReviewProposal({ proposal }: { proposal: ProposedToolReview }) {
+  const diffBlocks = useMemo(() => {
+    if (
+      typeof proposal.beforeText !== 'string' ||
+      typeof proposal.afterText !== 'string'
+    ) {
+      return []
+    }
+
+    return createDiffBlocks(proposal.beforeText, proposal.afterText)
+  }, [proposal])
+
+  return (
+    <div className="smtcmp-toolcall-content-section">
+      <div>Review:</div>
+      <ObsidianCodeBlock content={proposal.summary} />
+      {diffBlocks.length > 0 && (
+        <div className="smtcmp-toolcall-review-diff">
+          {diffBlocks.map((block, index) =>
+            block.type === 'unchanged' ? null : (
+              <div key={index} className="smtcmp-toolcall-content-section">
+                {block.originalValue && (
+                  <ObsidianCodeBlock content={block.originalValue} />
+                )}
+                {block.modifiedValue && (
+                  <ObsidianCodeBlock content={block.modifiedValue} />
+                )}
+              </div>
+            ),
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function StatusIcon({ status }: { status: ToolCallResponseStatus }) {
   switch (status) {
     case ToolCallResponseStatus.PendingApproval:
+    case ToolCallResponseStatus.PendingReview:
       return null
     case ToolCallResponseStatus.Rejected:
     case ToolCallResponseStatus.Aborted:
