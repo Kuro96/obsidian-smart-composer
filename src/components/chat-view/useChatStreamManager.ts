@@ -12,10 +12,10 @@ import {
   LLMModelNotFoundException,
 } from '../../core/llm/exception'
 import { getChatModelClient } from '../../core/llm/manager'
+import { ConversationHarness } from '../../core/harness/ConversationHarness'
 import { ChatMessage } from '../../types/chat'
 import { SessionMode } from '../../core/mcp/mcpManager'
 import { PromptGenerator } from '../../utils/chat/promptGenerator'
-import { ResponseGenerator } from '../../utils/chat/responseGenerator'
 import { ErrorModal } from '../modals/ErrorModal'
 
 type UseChatStreamManagerParams = {
@@ -107,11 +107,11 @@ export function useChatStreamManager({
       const abortController = new AbortController()
       activeStreamAbortControllersRef.current.push(abortController)
 
-      let unsubscribeResponseGenerator: (() => void) | undefined
+      let unsubscribeHarness: (() => void) | undefined
 
       try {
         const mcpManager = await getMcpManager()
-        const responseGenerator = new ResponseGenerator({
+        const harness = new ConversationHarness({
           providerClient,
           model,
           messages: chatMessages,
@@ -125,29 +125,27 @@ export function useChatStreamManager({
           abortSignal: abortController.signal,
         })
 
-        unsubscribeResponseGenerator = responseGenerator.subscribe(
-          (responseMessages) => {
-            setChatMessages((prevChatMessages) => {
-              const lastMessageIndex = prevChatMessages.findIndex(
-                (message) => message.id === lastMessage.id,
-              )
-              if (lastMessageIndex === -1) {
-                // The last message no longer exists in the chat history.
-                // This likely means a new message was submitted while this stream was running.
-                // Abort this stream and keep the current chat history.
-                abortController.abort()
-                return prevChatMessages
-              }
-              return [
-                ...prevChatMessages.slice(0, lastMessageIndex + 1),
-                ...responseMessages,
-              ]
-            })
-            autoScrollToBottom()
-          },
-        )
+        unsubscribeHarness = harness.subscribe((responseMessages) => {
+          setChatMessages((prevChatMessages) => {
+            const lastMessageIndex = prevChatMessages.findIndex(
+              (message) => message.id === lastMessage.id,
+            )
+            if (lastMessageIndex === -1) {
+              // The last message no longer exists in the chat history.
+              // This likely means a new message was submitted while this stream was running.
+              // Abort this stream and keep the current chat history.
+              abortController.abort()
+              return prevChatMessages
+            }
+            return [
+              ...prevChatMessages.slice(0, lastMessageIndex + 1),
+              ...responseMessages,
+            ]
+          })
+          autoScrollToBottom()
+        })
 
-        await responseGenerator.run()
+        await harness.run()
       } catch (error) {
         // Ignore AbortError
         if (error instanceof Error && error.name === 'AbortError') {
@@ -155,8 +153,8 @@ export function useChatStreamManager({
         }
         throw error
       } finally {
-        if (unsubscribeResponseGenerator) {
-          unsubscribeResponseGenerator()
+        if (unsubscribeHarness) {
+          unsubscribeHarness()
         }
         activeStreamAbortControllersRef.current =
           activeStreamAbortControllersRef.current.filter(
