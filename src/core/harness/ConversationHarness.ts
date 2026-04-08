@@ -1,34 +1,32 @@
 /**
- * ConversationHarness — Phase 2 实现
+ * ConversationHarness — Phase 3 更新
  *
  * 会话级执行器，替代 ResponseGenerator 成为 UI 与执行层之间的边界。
- * 职责：
- * - 持有本次响应产生的新消息（responseMessages）
- * - 通过 TurnEngine 驱动单轮流式请求
- * - 通过 ToolExecutor 执行工具调用
- * - 通过 subscribe() 向 UI 推送消息变更
- *
- * 当前（Phase 2）：构造参数仍包含 McpManager / PromptGenerator，
- * 与旧 ResponseGenerator 保持接口相近，方便 useChatStreamManager 平滑切换。
- * Phase 5-6：UI 只调用 submit() / approveToolCall() / abort()，不再传入 messages。
+ * Phase 3 变化：
+ * - 构建 ToolRegistry（通过 buildToolRegistry 工厂），传给 ToolExecutor
+ * - ToolExecutor 通过 ToolRegistry 执行工具，不再直接调用 McpManager.callTool()
+ * - run() 会等待 registry 异步构建完成后才开始请求
  */
 
+import { App } from 'obsidian'
 import { v4 as uuidv4 } from 'uuid'
 
 import { BaseLLMProvider } from '../llm/base'
 import { McpManager, SessionMode } from '../mcp/mcpManager'
+import { buildToolRegistry } from '../tools/buildToolRegistry'
+import type { ToolRegistry } from '../tools/ToolRegistry'
+import { ToolRegistryImpl } from '../tools/ToolRegistryImpl'
 import { ChatMessage, ChatToolMessage } from '../../types/chat'
 import { ChatModel } from '../../types/chat-model.types'
 import { LLMProvider } from '../../types/provider.types'
-import {
-  ToolCallResponseStatus,
-} from '../../types/tool-call.types'
+import { ToolCallResponseStatus } from '../../types/tool-call.types'
 import { PromptGenerator } from '../../utils/chat/promptGenerator'
 
 import { ToolExecutor } from './ToolExecutor'
 import { TurnEngine } from './TurnEngine'
 
 export type ConversationHarnessParams = {
+  app: App
   providerClient: BaseLLMProvider<LLMProvider>
   model: ChatModel
   /** 初始消息列表（含用户历史消息），不含本次响应产生的新消息 */
@@ -48,21 +46,37 @@ export class ConversationHarness {
   private readonly conversationId: string
   private readonly maxAutoIterations: number
   private readonly abortSignal?: AbortSignal
+  private readonly mcpManager: McpManager
 
   private readonly turnEngine: TurnEngine
-  private readonly toolExecutor: ToolExecutor
+  private toolExecutor: ToolExecutor
 
   /** 本次响应产生的新消息（不含 receivedMessages） */
   private responseMessages: ChatMessage[] = []
   private subscribers: ((messages: ChatMessage[]) => void)[] = []
+
+  /** registry 异步构建完成的 Promise，run() 会先 await 它 */
+  private readonly registryReady: Promise<void>
 
   constructor(params: ConversationHarnessParams) {
     this.receivedMessages = params.messages
     this.conversationId = params.conversationId
     this.maxAutoIterations = Math.max(1, params.maxAutoIterations)
     this.abortSignal = params.abortSignal
+    this.mcpManager = params.mcpManager
 
-    this.toolExecutor = new ToolExecutor(params.mcpManager)
+    // 初始化空 registry 作为占位（run() 调用前会被替换）
+    const emptyRegistry: ToolRegistry = new ToolRegistryImpl()
+    this.toolExecutor = new ToolExecutor(emptyRegistry, params.mcpManager)
+
+    // 异步构建 registry，完成后替换 toolExecutor
+    this.registryReady = buildToolRegistry({
+      app: params.app,
+      mcpManager: params.mcpManager,
+      enableSkills: params.enableSkills,
+    }).then((registry) => {
+      this.toolExecutor = new ToolExecutor(registry, params.mcpManager)
+    })
 
     this.turnEngine = new TurnEngine({
       providerClient: params.providerClient,
@@ -88,6 +102,9 @@ export class ConversationHarness {
    * 通过 subscribe() 的回调实时推送消息变更。
    */
   public async run(): Promise<void> {
+    // 确保 registry 已构建完成
+    await this.registryReady
+
     for (let i = 0; i < this.maxAutoIterations; i++) {
       const allMessages = [
         ...this.receivedMessages,
@@ -128,9 +145,7 @@ export class ConversationHarness {
       // 并行执行所有允许自动执行的工具
       await Promise.all(
         toolMessage.toolCalls
-          .filter(
-            (tc) => tc.response.status === ToolCallResponseStatus.Running,
-          )
+          .filter((tc) => tc.response.status === ToolCallResponseStatus.Running)
           .map(async (tc) => {
             const response = await this.toolExecutor.execute({
               name: tc.request.name,

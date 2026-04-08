@@ -385,6 +385,11 @@ export class McpManager {
     return this.getVaultTools()
   }
 
+  /** Phase 3: 供 SkillToolAdapter / buildToolRegistry 使用 */
+  public getSkillManager(): SkillManager {
+    return this.skillManager
+  }
+
   public async getSkillPromptSection(): Promise<string> {
     return this.skillManager.getPromptSection()
   }

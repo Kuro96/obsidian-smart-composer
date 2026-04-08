@@ -112,6 +112,7 @@ export function useChatStreamManager({
       try {
         const mcpManager = await getMcpManager()
         const harness = new ConversationHarness({
+          app,
           providerClient,
           model,
           messages: chatMessages,
