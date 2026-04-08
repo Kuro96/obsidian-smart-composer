@@ -10,6 +10,36 @@ import { App } from 'obsidian'
 import type { ToolEntry, ToolRegistry } from '../ToolRegistry'
 import { applyJsonLogic } from '../vault-utils'
 
+/** search_simple / search_text 共享实现 */
+function makeSearchTextHandler(app: App): ToolEntry['handler'] {
+  return async (args) => {
+    const query = args?.query
+    if (typeof query !== 'string' || query.trim().length === 0)
+      throw new Error('search requires a non-empty "query"')
+    const contextLength = typeof args?.contextLength === 'number' ? args.contextLength : 100
+    const limit = typeof args?.limit === 'number' ? args.limit : 20
+    const queryLower = query.toLowerCase()
+    const allFiles = app.vault.getMarkdownFiles()
+    const results: Array<{ path: string; matchType: 'filename' | 'content'; context?: string }> = []
+
+    for (const file of allFiles) {
+      if (results.length >= limit) break
+      if (file.name.toLowerCase().includes(queryLower)) {
+        results.push({ path: file.path, matchType: 'filename' })
+        continue
+      }
+      const content = await app.vault.cachedRead(file)
+      const idx = content.toLowerCase().indexOf(queryLower)
+      if (idx !== -1) {
+        const start = Math.max(0, idx - Math.floor(contextLength / 2))
+        const end = Math.min(content.length, idx + query.length + Math.floor(contextLength / 2))
+        results.push({ path: file.path, matchType: 'content', context: content.slice(start, end) })
+      }
+    }
+    return JSON.stringify(results, null, 2)
+  }
+}
+
 export class SearchToolPack {
   constructor(private readonly app: App) {}
 
@@ -55,6 +85,33 @@ export class SearchToolPack {
 
       {
         tool: {
+          name: 'search_text',
+          description:
+            'Search vault notes by filename or content (alias for search_simple, preferred name going forward). Returns matching files with match type and an optional context snippet.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'Text to search for (case-insensitive).' },
+              contextLength: {
+                type: 'number',
+                description: 'Characters of surrounding context to include for content matches. Default 100.',
+              },
+              limit: {
+                type: 'number',
+                description: 'Maximum number of results to return. Default 20.',
+              },
+            },
+            required: ['query'],
+          },
+        },
+        tier: 'read-only',
+        source: 'builtin',
+        approvalRequired: false,
+        handler: makeSearchTextHandler(app),
+      },
+
+      {
+        tool: {
           name: 'search_simple',
           description:
             'Search vault notes by filename or content. Returns matching files with match type and an optional context snippet.',
@@ -77,39 +134,7 @@ export class SearchToolPack {
         tier: 'read-only',
         source: 'builtin',
         approvalRequired: false,
-        handler: async (args) => {
-          const query = args?.query
-          if (typeof query !== 'string' || query.trim().length === 0)
-            throw new Error('search_simple requires a non-empty "query"')
-          const contextLength = typeof args?.contextLength === 'number' ? args.contextLength : 100
-          const limit = typeof args?.limit === 'number' ? args.limit : 20
-          const queryLower = query.toLowerCase()
-          const allFiles = app.vault.getMarkdownFiles()
-          const results: Array<{
-            path: string
-            matchType: 'filename' | 'content'
-            context?: string
-          }> = []
-
-          for (const file of allFiles) {
-            if (results.length >= limit) break
-            if (file.name.toLowerCase().includes(queryLower)) {
-              results.push({ path: file.path, matchType: 'filename' })
-              continue
-            }
-            const content = await app.vault.cachedRead(file)
-            const idx = content.toLowerCase().indexOf(queryLower)
-            if (idx !== -1) {
-              const start = Math.max(0, idx - Math.floor(contextLength / 2))
-              const end = Math.min(
-                content.length,
-                idx + query.length + Math.floor(contextLength / 2),
-              )
-              results.push({ path: file.path, matchType: 'content', context: content.slice(start, end) })
-            }
-          }
-          return JSON.stringify(results, null, 2)
-        },
+        handler: makeSearchTextHandler(app),
       },
 
       {

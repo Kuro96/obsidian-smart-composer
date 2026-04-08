@@ -15,6 +15,7 @@ import { McpManager } from '../mcp/mcpManager'
 import { registerExternalMcpServer } from './adapters/ExternalMcpAdapter'
 import { SkillToolAdapter } from './adapters/SkillToolAdapter'
 import { CommandsToolPack } from './packs/CommandsToolPack'
+import { MetadataToolPack } from './packs/MetadataToolPack'
 import { SearchToolPack } from './packs/SearchToolPack'
 import { VaultToolPack } from './packs/VaultToolPack'
 import { WorkspaceToolPack } from './packs/WorkspaceToolPack'
@@ -38,6 +39,7 @@ export async function buildToolRegistry(
   new WorkspaceToolPack(app).registerAll(registry)
   new CommandsToolPack(app).registerAll(registry)
   new SearchToolPack(app).registerAll(registry)
+  new MetadataToolPack(app).registerAll(registry)
 
   // 2. 注册外部 MCP server 工具
   for (const server of mcpManager.getServers()) {

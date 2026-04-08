@@ -8,8 +8,16 @@ export const BUILTIN_READ_ONLY_TOOLS: string[] = [
   'commands_list',
   'tags_list',
   'search_simple',
+  'search_text',       // Phase 4: preferred alias for search_simple
   'search_dataview',
   'search_jsonlogic',
+  // Phase 4: metadata tools
+  'note_frontmatter_get',
+  'vault_properties_list',
+  'vault_property_values',
+  'vault_query_notes',
+  'note_links_get',
+  'note_backlinks_get',
 ]
 
 export const BUILTIN_READ_WRITE_TOOLS: string[] = [
@@ -21,6 +29,10 @@ export const BUILTIN_READ_WRITE_TOOLS: string[] = [
   'active_note_append',
   'note_open',
   'command_execute',
+  // Phase 4: metadata write + move
+  'note_frontmatter_set',
+  'note_frontmatter_delete',
+  'vault_move',
 ]
 
 export const BUILTIN_DANGER_ZONE_TOOLS: string[] = [
