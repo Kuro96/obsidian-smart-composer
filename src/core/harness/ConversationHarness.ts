@@ -145,6 +145,9 @@ export class ConversationHarness {
 
     try {
       for (let i = 0; i < this.maxAutoIterations; i++) {
+        let streamedToolMessageId: string | null = null
+        let streamedExecutionPromise: Promise<void> | null = null
+
         const allMessages = [
           ...this.receivedMessages,
           ...this.responseMessages,
@@ -159,29 +162,37 @@ export class ConversationHarness {
             this.responseMessages = updater(this.responseMessages)
             this.notifySubscribers()
           },
+          onToolCallsReady: (toolCallRequests) => {
+            if (!this.canStreamExecuteToolCalls(toolCallRequests)) {
+              return
+            }
+
+            const toolMessage = this.createToolMessage(toolCallRequests)
+            streamedToolMessageId = toolMessage.id
+            this.responseMessages = [...this.responseMessages, toolMessage]
+            this.notifySubscribers()
+            streamedExecutionPromise = this.executeAutoToolCalls(toolMessage)
+          },
         })
 
         if (toolCallRequests.length === 0) {
           return
         }
 
-        const toolMessage: ChatToolMessage = {
-          role: 'tool' as const,
-          id: uuidv4(),
-          toolCalls: toolCallRequests.map((req) => ({
-            request: req,
-            response: {
-              status: this.toolExecutor.isAllowed(req.name, this.conversationId)
-                ? ToolCallResponseStatus.Running
-                : ToolCallResponseStatus.PendingApproval,
-            },
-          })),
+        let toolMessage = streamedToolMessageId
+          ? ((this.responseMessages.find(
+              (msg) => msg.id === streamedToolMessageId && msg.role === 'tool',
+            ) as ChatToolMessage | undefined) ?? null)
+          : null
+
+        if (!toolMessage) {
+          toolMessage = this.createToolMessage(toolCallRequests)
+          this.responseMessages = [...this.responseMessages, toolMessage]
+          this.notifySubscribers()
+          await this.executeAutoToolCalls(toolMessage)
+        } else {
+          await streamedExecutionPromise
         }
-
-        this.responseMessages = [...this.responseMessages, toolMessage]
-        this.notifySubscribers()
-
-        await this.executeAutoToolCalls(toolMessage)
 
         const updatedToolMessage = this.responseMessages.find(
           (msg) => msg.id === toolMessage.id && msg.role === 'tool',
@@ -261,6 +272,34 @@ export class ConversationHarness {
   private isConcurrencySafeReadOnlyTool(toolName: string): boolean {
     const entry = this.builtRegistry.resolve(toolName)
     return entry?.tier === 'read-only' && entry.source === 'builtin'
+  }
+
+  private canStreamExecuteToolCalls(toolCallRequests: { name: string }[]): boolean {
+    return (
+      toolCallRequests.length > 0 &&
+      toolCallRequests.every(
+        (req) =>
+          this.toolExecutor.isAllowed(req.name, this.conversationId) &&
+          this.isConcurrencySafeReadOnlyTool(req.name),
+      )
+    )
+  }
+
+  private createToolMessage(
+    toolCallRequests: ChatToolMessage['toolCalls'][number]['request'][],
+  ): ChatToolMessage {
+    return {
+      role: 'tool' as const,
+      id: uuidv4(),
+      toolCalls: toolCallRequests.map((req) => ({
+        request: req,
+        response: {
+          status: this.toolExecutor.isAllowed(req.name, this.conversationId)
+            ? ToolCallResponseStatus.Running
+            : ToolCallResponseStatus.PendingApproval,
+        },
+      })),
+    }
   }
 
   private closeDanglingToolCalls(

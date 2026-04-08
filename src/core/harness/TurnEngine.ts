@@ -48,6 +48,7 @@ export type TurnEngineRunOptions = {
    * TurnEngine 通过此回调通知调用方（ConversationHarness）有新增或变更的消息。
    */
   onMessagesUpdate: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void
+  onToolCallsReady?: (toolCallRequests: ToolCallRequest[]) => void
 }
 
 export type TurnEngineResult = {
@@ -71,7 +72,14 @@ export class TurnEngine {
    * 通过 `onMessagesUpdate` 实时推送消息变化（增量文本、annotations 等）。
    */
   async run(opts: TurnEngineRunOptions): Promise<TurnEngineResult> {
-    const { allMessages, abortSignal, onMessagesUpdate, registry, sessionMode } = opts
+    const {
+      allMessages,
+      abortSignal,
+      onMessagesUpdate,
+      registry,
+      sessionMode,
+      onToolCallsReady,
+    } = opts
 
     // 1. 构建本轮请求消息
     const requestMessages = await this.promptGenerator.generateRequestMessages({
@@ -122,6 +130,7 @@ export class TurnEngine {
 
     // 5. 消费流式数据
     let accumulatedToolCalls: Record<number, ToolCallDelta> = {}
+    let didNotifyToolCalls = false
     for await (const chunk of stream) {
       const { updatedToolCalls } = this.processChunk(
         chunk,
@@ -130,20 +139,32 @@ export class TurnEngine {
         onMessagesUpdate,
       )
       accumulatedToolCalls = updatedToolCalls
+
+      const finishReason = chunk.choices[0]?.finish_reason
+      if (
+        !didNotifyToolCalls &&
+        (finishReason === 'tool_calls' || finishReason === 'function_call')
+      ) {
+        const toolCallRequests = this.extractToolCallRequests(accumulatedToolCalls)
+        if (toolCallRequests.length > 0) {
+          didNotifyToolCalls = true
+          onMessagesUpdate((prev) =>
+            prev.map((msg) =>
+              msg.id === responseMessageId && msg.role === 'assistant'
+                ? {
+                    ...msg,
+                    toolCallRequests,
+                  }
+                : msg,
+            ),
+          )
+          onToolCallsReady?.(toolCallRequests)
+        }
+      }
     }
 
     // 6. 从累积的工具调用中提取有效的 ToolCallRequest
-    const toolCallRequests: ToolCallRequest[] = Object.values(
-      accumulatedToolCalls,
-    ).reduce<ToolCallRequest[]>((acc, toolCall) => {
-      if (!toolCall.function?.name) return acc
-      acc.push({
-        id: toolCall.id ?? uuidv4(),
-        name: toolCall.function.name,
-        arguments: toolCall.function.arguments,
-      })
-      return acc
-    }, [])
+    const toolCallRequests = this.extractToolCallRequests(accumulatedToolCalls)
 
     // 7. 将工具调用请求写回 assistant 消息
     onMessagesUpdate((prev) =>
@@ -159,6 +180,23 @@ export class TurnEngine {
     )
 
     return { toolCallRequests }
+  }
+
+  private extractToolCallRequests(
+    accumulatedToolCalls: Record<number, ToolCallDelta>,
+  ): ToolCallRequest[] {
+    return Object.values(accumulatedToolCalls).reduce<ToolCallRequest[]>(
+      (acc, toolCall) => {
+        if (!toolCall.function?.name) return acc
+        acc.push({
+          id: toolCall.id ?? uuidv4(),
+          name: toolCall.function.name,
+          arguments: toolCall.function.arguments,
+        })
+        return acc
+      },
+      [],
+    )
   }
 
   private processChunk(
