@@ -86,6 +86,24 @@ export function McpSection({ app, plugin }: McpSectionProps) {
         <span>Tools {toolsEnabled ? 'On' : 'Off'}</span>
       </div>
 
+      <div className="smtcmp-mcp-panel smtcmp-mcp-panel--overview">
+        <div className="smtcmp-settings-sub-header-container smtcmp-mcp-panel-header">
+          <div>
+            <div className="smtcmp-settings-sub-header">Runtime Overview</div>
+            <div className="smtcmp-settings-desc smtcmp-mcp-panel-desc">
+              This area reflects what the model can currently access at runtime. Use the panels below to change saved configuration.
+            </div>
+          </div>
+        </div>
+        <div className="smtcmp-modal-summary-row">
+          <span>Connected servers {connectedServerCount}</span>
+          <span>Enabled servers {enabledServerCount}</span>
+          <span>Remote tools {remoteToolCount}</span>
+          <span>Built-in tools {builtInTools.length}</span>
+          <span>Global tools {toolsEnabled ? 'Enabled' : 'Disabled'}</span>
+        </div>
+      </div>
+
       {mcpManager?.disabled ? (
         <div className="smtcmp-mcp-empty-state">
           <div className="smtcmp-settings-sub-header">
@@ -105,8 +123,7 @@ export function McpSection({ app, plugin }: McpSectionProps) {
                   User-installed MCP Servers
                 </div>
                 <div className="smtcmp-settings-desc smtcmp-mcp-panel-desc">
-                  Manage external MCP servers and control which tools can run
-                  automatically.
+                  Saved server configuration. Add, edit, enable, and tune external tool permissions here.
                 </div>
               </div>
               <div className="smtcmp-mcp-panel-header-action">
@@ -154,8 +171,7 @@ export function McpSection({ app, plugin }: McpSectionProps) {
                   Built-in Vault Tools
                 </div>
                 <div className="smtcmp-settings-desc smtcmp-mcp-panel-desc">
-                  Native vault tools bundled with Smart Composer. They are
-                  available whenever the global Tools toggle is on.
+                  Built-in tools bundled with Smart Composer. These are runtime capabilities, not per-server installs.
                 </div>
               </div>
             </div>
@@ -529,7 +545,7 @@ function McpToolDetailPanel({
           />
           <McpToolControlCard
             title="Auto-execute"
-            description="Allows Smart Composer to run this tool without asking first."
+            description="Allows Smart Composer to run this tool without asking first. Turn this on only if you are comfortable with the model taking action immediately for this server."
             value={
               server.config.toolOptions[tool.name]?.allowAutoExecution ?? false
             }

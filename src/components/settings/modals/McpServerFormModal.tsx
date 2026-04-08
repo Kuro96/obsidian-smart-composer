@@ -55,11 +55,13 @@ function McpServerFormComponent({
     ? plugin.settings.mcp.servers.find((server) => server.id === serverId)
     : undefined
 
-  const [name, setName] = useState(existingServer?.id ?? '')
-  const [parameters, setParameters] = useState(
+  const [draftName, setDraftName] = useState(existingServer?.id ?? '')
+  const [draftParameters, setDraftParameters] = useState(
     existingServer ? JSON.stringify(existingServer.parameters, null, 2) : '',
   )
   const [validationError, setValidationError] = useState<string | null>(null)
+  const [validatedParameters, setValidatedParameters] =
+    useState<McpServerParameters | null>(existingServer?.parameters ?? null)
 
   const PARAMETERS_PLACEHOLDER = JSON.stringify(
     {
@@ -75,7 +77,7 @@ function McpServerFormComponent({
 
   const handleSubmit = async () => {
     try {
-      const serverName = name.trim()
+      const serverName = draftName.trim()
       if (serverName.length === 0) {
         throw new Error('Name is required')
       }
@@ -90,18 +92,12 @@ function McpServerFormComponent({
         throw new Error('Server with same name already exists')
       }
 
-      if (parameters.trim().length === 0) {
+      if (draftParameters.trim().length === 0) {
         throw new Error('Parameters are required')
       }
-      let parsedParameters: unknown
-      try {
-        parsedParameters = JSON.parse(parameters)
-      } catch {
-        throw new Error('Parameters must be valid JSON')
+      if (!validatedParameters) {
+        throw new Error('Parameters must be valid before saving')
       }
-      const validatedParameters: McpServerParameters = mcpServerParametersSchema
-        .strict()
-        .parse(parsedParameters)
 
       const newSettings = {
         ...plugin.settings,
@@ -145,13 +141,18 @@ function McpServerFormComponent({
   const validateParameters = useCallback((parameters: string) => {
     try {
       if (parameters.length === 0) {
+        setValidatedParameters(null)
         setValidationError('Parameters are required')
         return
       }
       const parsedParameters = JSON.parse(parameters)
-      mcpServerParametersSchema.strict().parse(parsedParameters)
+      const nextValidatedParameters = mcpServerParametersSchema
+        .strict()
+        .parse(parsedParameters)
+      setValidatedParameters(nextValidatedParameters)
       setValidationError(null)
     } catch (error) {
+      setValidatedParameters(null)
       if (error instanceof SyntaxError) {
         // JSON parse error
         setValidationError('Invalid JSON format')
@@ -173,22 +174,34 @@ function McpServerFormComponent({
   }, [])
 
   useEffect(() => {
-    validateParameters(parameters)
-  }, [parameters, validateParameters])
+    validateParameters(draftParameters)
+  }, [draftParameters, validateParameters])
+
+  const draftSummary = validatedParameters
+    ? [
+        `Command: ${validatedParameters.command}`,
+        `Args: ${validatedParameters.args?.length ?? 0}`,
+        `Environment variables: ${Object.keys(validatedParameters.env ?? {}).length}`,
+      ].join(' | ')
+    : 'Fix validation errors to preview the server launch configuration.'
 
   return (
     <>
-      <ObsidianSetting name="Name" desc="The name of the MCP server" required>
+      <ObsidianSetting
+        name="Name"
+        desc="Internal identifier for this server. This is also used as the MCP server prefix in tool names."
+        required
+      >
         <ObsidianTextInput
-          value={name}
-          onChange={(value: string) => setName(value)}
+          value={draftName}
+          onChange={(value: string) => setDraftName(value)}
           placeholder="e.g. 'github'"
         />
       </ObsidianSetting>
 
       <ObsidianSetting
         name="Parameters"
-        desc={`JSON configuration that defines how to run the MCP server. Format must include:
+        desc={`Draft the launch configuration for this MCP server. Format must include:
 - "command": The executable name (e.g., "npx", "node")
 - "args": (Optional) Array of command-line arguments
 - "env": (Optional) Key-value pairs of environment variables`}
@@ -196,9 +209,9 @@ function McpServerFormComponent({
         required
       />
       <TextareaAutosize
-        value={parameters}
+        value={draftParameters}
         placeholder={PARAMETERS_PLACEHOLDER}
-        onChange={(e) => setParameters(e.target.value)}
+        onChange={(e) => setDraftParameters(e.target.value)}
         className="smtcmp-mcp-server-modal-textarea"
         maxRows={20}
         minRows={PARAMETERS_PLACEHOLDER.split('\n').length}
@@ -213,8 +226,22 @@ function McpServerFormComponent({
         </div>
       )}
 
+      <ObsidianSetting
+        name="Review"
+        desc="Save only commits this draft. Review the launch summary first so you can catch JSON mistakes before they affect the live MCP server list."
+        className="smtcmp-settings-textarea-header"
+      />
+      <div className="smtcmp-mcp-server-modal-validation">
+        {draftSummary}
+      </div>
+
       <ObsidianSetting>
-        <ObsidianButton text="Save" onClick={handleSubmit} cta />
+        <ObsidianButton
+          text="Save"
+          onClick={handleSubmit}
+          cta
+          disabled={validationError !== null}
+        />
         <ObsidianButton text="Cancel" onClick={onClose} />
       </ObsidianSetting>
     </>

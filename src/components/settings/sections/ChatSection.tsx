@@ -136,7 +136,7 @@ export function ChatSection() {
 
       <ObsidianSetting
         name="Auto-allow built-in read/write tools"
-        desc="When enabled, built-in tools that write to the vault (vault_write, vault_edit, vault_append, etc.) execute automatically without asking for approval. Danger-zone tools (vault_delete) always require approval regardless of this setting."
+        desc="When enabled, Smart Composer may modify notes in your vault without pausing for approval on normal write operations. Danger-zone tools such as vault_delete still require approval."
       >
         <ObsidianToggle
           value={settings.chatOptions.defaultAllowBuiltinReadWrite}
