@@ -1,10 +1,9 @@
 import { Editor, MarkdownView, Notice, Plugin } from 'obsidian'
 
-import { ApplyView } from './ApplyView'
 import { ChatView } from './ChatView'
 import { ChatProps } from './components/chat-view/Chat'
 import { InstallerUpdateRequiredModal } from './components/modals/InstallerUpdateRequiredModal'
-import { APPLY_VIEW_TYPE, CHAT_VIEW_TYPE } from './constants'
+import { CHAT_VIEW_TYPE } from './constants'
 import { McpManager } from './core/mcp/mcpManager'
 import { RAGEngine } from './core/rag/ragEngine'
 import { DatabaseManager } from './database/DatabaseManager'
@@ -23,7 +22,7 @@ import { getMentionableBlockData } from './utils/obsidian'
 
 export default class SmartComposerPlugin extends Plugin {
   settings: SmartComposerSettings
-  initialChatProps?: ChatProps // TODO: change this to use view state like ApplyView
+  initialChatProps?: ChatProps
   settingsChangeListeners: ((newSettings: SmartComposerSettings) => void)[] = []
   mcpManager: McpManager | null = null
   dbManager: DatabaseManager | null = null
@@ -36,7 +35,6 @@ export default class SmartComposerPlugin extends Plugin {
     await this.loadSettings()
 
     this.registerView(CHAT_VIEW_TYPE, (leaf) => new ChatView(leaf, this))
-    this.registerView(APPLY_VIEW_TYPE, (leaf) => new ApplyView(leaf))
 
     // This creates an icon in the left ribbon.
     this.addRibbonIcon('wand-sparkles', 'Open smart composer', () =>

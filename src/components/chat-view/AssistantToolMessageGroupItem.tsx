@@ -1,6 +1,5 @@
 import {
   AssistantToolMessageGroup,
-  ChatMessage,
   ChatToolMessage,
 } from '../../types/chat'
 import { ToolCallRequest, ToolCallResponse } from '../../types/tool-call.types'
@@ -13,10 +12,7 @@ import ToolMessage from './ToolMessage'
 
 export type AssistantToolMessageGroupItemProps = {
   messages: AssistantToolMessageGroup
-  contextMessages: ChatMessage[]
   conversationId: string
-  isApplying: boolean // TODO: isApplying should be a boolean for each assistant message
-  onApply: (blockToApply: string, chatMessages: ChatMessage[]) => void
   onToolMessageUpdate: (message: ChatToolMessage) => void
   onAllowToolForConversation: (toolName: string, conversationId: string) => void
   executeToolCall: (
@@ -27,10 +23,7 @@ export type AssistantToolMessageGroupItemProps = {
 
 export default function AssistantToolMessageGroupItem({
   messages,
-  contextMessages,
   conversationId,
-  isApplying,
-  onApply,
   onToolMessageUpdate,
   onAllowToolForConversation,
   executeToolCall,
@@ -49,12 +42,7 @@ export default function AssistantToolMessageGroupItem({
                   annotations={message.annotations}
                 />
               )}
-              <AssistantMessageContent
-                content={message.content}
-                contextMessages={contextMessages}
-                handleApply={onApply}
-                isApplying={isApplying}
-              />
+              <AssistantMessageContent content={message.content} />
             </div>
           ) : null
         ) : (

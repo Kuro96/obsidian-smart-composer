@@ -1,4 +1,3 @@
-import { useMutation } from '@tanstack/react-query'
 import { Book, CircleStop, History, Lock, LockOpen, Plus } from 'lucide-react'
 import { App, Notice } from 'obsidian'
 import {
@@ -12,18 +11,10 @@ import {
 } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
-import { ApplyViewState } from '../../ApplyView'
-import { APPLY_VIEW_TYPE } from '../../constants'
 import { useApp } from '../../contexts/app-context'
 import { useMcp } from '../../contexts/mcp-context'
 import { useRAG } from '../../contexts/rag-context'
 import { useSettings } from '../../contexts/settings-context'
-import {
-  LLMAPIKeyInvalidException,
-  LLMAPIKeyNotSetException,
-  LLMBaseUrlNotSetException,
-} from '../../core/llm/exception'
-import { getChatModelClient } from '../../core/llm/manager'
 import { useChatHistory } from '../../hooks/useChatHistory'
 import {
   AssistantToolMessageGroup,
@@ -38,15 +29,12 @@ import {
   MentionableCurrentFile,
 } from '../../types/mentionable'
 import { ToolCallResponseStatus } from '../../types/tool-call.types'
-import { applyChangesToFile } from '../../utils/chat/apply'
 import {
   getMentionableKey,
   serializeMentionable,
 } from '../../utils/chat/mentionable'
 import { groupAssistantAndToolMessages } from '../../utils/chat/message-groups'
 import { PromptGenerator } from '../../utils/chat/promptGenerator'
-import { readTFileContent } from '../../utils/obsidian'
-import { ErrorModal } from '../modals/ErrorModal'
 import { TemplateSectionModal } from '../modals/TemplateSectionModal'
 
 import AssistantToolMessageGroupItem from './AssistantToolMessageGroupItem'
@@ -86,7 +74,7 @@ export type ChatProps = {
 
 const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
   const app = useApp()
-  const { settings, setSettings } = useSettings()
+  const { settings } = useSettings()
   const { getRAGEngine } = useRAG()
   const { getMcpManager } = useMcp()
 
@@ -283,73 +271,6 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
       abortActiveStreams,
       forceScrollToBottom,
     ],
-  )
-
-  const applyMutation = useMutation({
-    mutationFn: async ({
-      blockToApply,
-      chatMessages,
-    }: {
-      blockToApply: string
-      chatMessages: ChatMessage[]
-    }) => {
-      const activeFile = app.workspace.getActiveFile()
-      if (!activeFile) {
-        throw new Error(
-          'No file is currently open to apply changes. Please open a file and try again.',
-        )
-      }
-      const activeFileContent = await readTFileContent(activeFile, app.vault)
-
-      const { providerClient, model } = getChatModelClient({
-        modelId: settings.applyModelId,
-        settings,
-        setSettings,
-      })
-
-      const updatedFileContent = await applyChangesToFile({
-        blockToApply,
-        currentFile: activeFile,
-        currentFileContent: activeFileContent,
-        chatMessages,
-        providerClient,
-        model,
-      })
-      if (!updatedFileContent) {
-        throw new Error('Failed to apply changes')
-      }
-
-      await app.workspace.getLeaf(true).setViewState({
-        type: APPLY_VIEW_TYPE,
-        active: true,
-        state: {
-          file: activeFile,
-          originalContent: activeFileContent,
-          newContent: updatedFileContent,
-        } satisfies ApplyViewState,
-      })
-    },
-    onError: (error) => {
-      if (
-        error instanceof LLMAPIKeyNotSetException ||
-        error instanceof LLMAPIKeyInvalidException ||
-        error instanceof LLMBaseUrlNotSetException
-      ) {
-        new ErrorModal(app, 'Error', error.message, error.rawError?.message, {
-          showSettingsButton: true,
-        }).open()
-      } else {
-        new Notice(error.message)
-        console.error('Failed to apply changes', error)
-      }
-    },
-  })
-
-  const handleApply = useCallback(
-    (blockToApply: string, chatMessages: ChatMessage[]) => {
-      applyMutation.mutate({ blockToApply, chatMessages })
-    },
-    [applyMutation],
   )
 
   const handleToolMessageUpdate = useCallback(
@@ -702,16 +623,7 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
             <AssistantToolMessageGroupItem
               key={messageOrGroup.at(0)?.id}
               messages={messageOrGroup}
-              contextMessages={groupedChatMessages
-                .slice(0, index + 1)
-                .flatMap((messageOrGroup): ChatMessage[] =>
-                  !Array.isArray(messageOrGroup)
-                    ? [messageOrGroup]
-                    : messageOrGroup,
-                )}
               conversationId={currentConversationId}
-              isApplying={applyMutation.isPending}
-              onApply={handleApply}
               onToolMessageUpdate={handleToolMessageUpdate}
               onAllowToolForConversation={allowToolForConversation}
               executeToolCall={executeToolCall}

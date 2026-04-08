@@ -1,6 +1,6 @@
-import React, { useCallback, useMemo } from 'react'
+import React, { useMemo } from 'react'
 
-import { ChatAssistantMessage, ChatMessage } from '../../types/chat'
+import { ChatAssistantMessage } from '../../types/chat'
 import {
   ParsedTagContent,
   parseTagContents,
@@ -13,37 +13,20 @@ import { ObsidianMarkdown } from './ObsidianMarkdown'
 
 export default function AssistantMessageContent({
   content,
-  contextMessages,
-  handleApply,
-  isApplying,
 }: {
   content: ChatAssistantMessage['content']
-  contextMessages: ChatMessage[]
-  handleApply: (blockToApply: string, chatMessages: ChatMessage[]) => void
-  isApplying: boolean
 }) {
-  const onApply = useCallback(
-    (blockToApply: string) => {
-      handleApply(blockToApply, contextMessages)
-    },
-    [handleApply, contextMessages],
-  )
-
   return (
-    <AssistantTextRenderer onApply={onApply} isApplying={isApplying}>
+    <AssistantTextRenderer>
       {content}
     </AssistantTextRenderer>
   )
 }
 
 const AssistantTextRenderer = React.memo(function AssistantTextRenderer({
-  onApply,
-  isApplying,
   children,
 }: {
-  onApply: (blockToApply: string) => void
   children: string
-  isApplying: boolean
 }) {
   const blocks: ParsedTagContent[] = useMemo(
     () => parseTagContents(children),
@@ -69,8 +52,6 @@ const AssistantTextRenderer = React.memo(function AssistantTextRenderer({
         ) : (
           <MarkdownCodeComponent
             key={index}
-            onApply={onApply}
-            isApplying={isApplying}
             language={block.language}
             filename={block.filename}
           >
