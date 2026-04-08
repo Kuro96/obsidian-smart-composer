@@ -3,14 +3,11 @@ export type BuiltinToolTier = 'read-only' | 'read-write' | 'danger-zone'
 export const BUILTIN_READ_ONLY_TOOLS: string[] = [
   'vault_list',
   'vault_read',
-  'vault_get',
   'active_note_get',
   'commands_list',
   'tags_list',
-  'search_simple',
-  'search_text',       // Phase 4: preferred alias for search_simple
+  'search_text',
   'search_dataview',
-  'search_jsonlogic',
   // Phase 4: metadata tools
   'note_frontmatter_get',
   'vault_properties_list',
@@ -37,7 +34,6 @@ export const BUILTIN_READ_WRITE_TOOLS: string[] = [
 
 export const BUILTIN_DANGER_ZONE_TOOLS: string[] = [
   'vault_delete',
-  'active_note_delete',
 ]
 
 export function getBuiltinToolTier(name: string): BuiltinToolTier | null {

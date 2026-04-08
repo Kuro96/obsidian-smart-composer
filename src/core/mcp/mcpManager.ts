@@ -29,6 +29,12 @@ import {
   getBuiltinToolTier,
 } from './builtin-tool-tiers'
 import { SkillManager } from '../skill/skillManager'
+import { CommandsToolPack } from '../tools/packs/CommandsToolPack'
+import { MetadataToolPack } from '../tools/packs/MetadataToolPack'
+import { SearchToolPack } from '../tools/packs/SearchToolPack'
+import { VaultToolPack } from '../tools/packs/VaultToolPack'
+import { WorkspaceToolPack } from '../tools/packs/WorkspaceToolPack'
+import { ToolRegistryImpl } from '../tools/ToolRegistryImpl'
 
 export type SessionMode = 'read-only' | 'read-write'
 export type { BuiltinToolTier }
@@ -48,12 +54,8 @@ export class McpManager {
   static readonly ACTIVE_NOTE_GET_TOOL = 'active_note_get'
   static readonly ACTIVE_NOTE_PUT_TOOL = 'active_note_put'
   static readonly ACTIVE_NOTE_APPEND_TOOL = 'active_note_append'
-  static readonly ACTIVE_NOTE_DELETE_TOOL = 'active_note_delete'
-  static readonly VAULT_GET_TOOL = 'vault_get'
-  static readonly SEARCH_SIMPLE_TOOL = 'search_simple'
   static readonly COMMAND_EXECUTE_TOOL = 'command_execute'
   static readonly SEARCH_DATAVIEW_TOOL = 'search_dataview'
-  static readonly SEARCH_JSONLOGIC_TOOL = 'search_jsonlogic'
 
   static readonly READ_ONLY_TOOLS: string[] = BUILTIN_READ_ONLY_TOOLS
   static readonly READ_WRITE_TOOLS: string[] = BUILTIN_READ_WRITE_TOOLS
@@ -356,7 +358,7 @@ export class McpManager {
       )
     ).flat()
 
-    availableTools.push(...this.getVaultTools())
+    availableTools.push(...this.listBuiltInTools())
 
     this.availableToolsCache = [...availableTools]
     const filtered = this.filterToolsBySessionMode(availableTools, sessionMode)
@@ -381,7 +383,13 @@ export class McpManager {
   }
 
   public listBuiltInTools(): McpTool[] {
-    return this.getVaultTools()
+    const registry = new ToolRegistryImpl()
+    new VaultToolPack(this.app).registerAll(registry)
+    new WorkspaceToolPack(this.app).registerAll(registry)
+    new CommandsToolPack(this.app).registerAll(registry)
+    new SearchToolPack(this.app).registerAll(registry)
+    new MetadataToolPack(this.app).registerAll(registry)
+    return registry.list()
   }
 
   /** Phase 3: 供 SkillToolAdapter / buildToolRegistry 使用 */
@@ -572,375 +580,8 @@ export class McpManager {
     }
   }
 
-  private getVaultTools(): McpTool[] {
-    return [
-      {
-        name: McpManager.VAULT_LIST_TOOL,
-        description:
-          'List files and folders under a vault-relative directory. Use this before reading or writing files.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            path: {
-              type: 'string',
-              description:
-                'Vault-relative directory path to list. Default is vault root.',
-            },
-          },
-          required: [],
-        },
-      },
-      {
-        name: McpManager.VAULT_READ_TOOL,
-        description:
-          'Read a UTF-8 text file from the vault by vault-relative path.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            path: {
-              type: 'string',
-              description: 'Vault-relative file path to read.',
-            },
-          },
-          required: ['path'],
-        },
-      },
-      {
-        name: McpManager.VAULT_WRITE_TOOL,
-        description:
-          'Write UTF-8 text content to a vault-relative file path (full overwrite). Prefer vault_edit for normal file updates. Use vault_write when vault_edit is not suitable (e.g., near-complete rewrite) or when vault_edit fails.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            path: {
-              type: 'string',
-              description: 'Vault-relative file path to write.',
-            },
-            content: {
-              type: 'string',
-              description: 'Full UTF-8 text content to write.',
-            },
-            createDirectories: {
-              type: 'boolean',
-              description:
-                'Whether to create missing parent directories. Default true.',
-            },
-          },
-          required: ['path', 'content'],
-        },
-      },
-      {
-        name: McpManager.VAULT_EDIT_TOOL,
-        description:
-          'Edit part of a UTF-8 text file by replacing oldText with newText. This is the preferred tool for file modifications. Use vault_write only when vault_edit is not suitable (e.g., near-complete rewrite) or after vault_edit fails.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            path: {
-              type: 'string',
-              description: 'Vault-relative file path to edit.',
-            },
-            oldText: {
-              type: 'string',
-              description: 'Exact text snippet to replace.',
-            },
-            newText: {
-              type: 'string',
-              description: 'Replacement text snippet.',
-            },
-            replaceAll: {
-              type: 'boolean',
-              description:
-                'Replace all occurrences when true. Default false (expects exactly one match).',
-            },
-          },
-          required: ['path', 'oldText', 'newText'],
-        },
-      },
-      {
-        name: McpManager.VAULT_MKDIR_TOOL,
-        description:
-          'Create a vault-relative directory path recursively if it does not exist.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            path: {
-              type: 'string',
-              description: 'Vault-relative directory path to create.',
-            },
-          },
-          required: ['path'],
-        },
-      },
-      {
-        name: McpManager.VAULT_DELETE_TOOL,
-        description:
-          'DESTRUCTIVE: Move a vault file or folder to the system trash. This cannot be undone from within Obsidian. Confirm the correct path before calling.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            path: {
-              type: 'string',
-              description: 'Vault-relative file or folder path to delete.',
-            },
-          },
-          required: ['path'],
-        },
-      },
-      {
-        name: McpManager.COMMANDS_LIST_TOOL,
-        description:
-          'List all available Obsidian commands with their IDs and names.',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-          required: [],
-        },
-      },
-      {
-        name: McpManager.TAGS_LIST_TOOL,
-        description: 'List all tags used in the vault.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            includeCounts: {
-              type: 'boolean',
-              description:
-                'When true, include the usage count for each tag. Default false.',
-            },
-          },
-          required: [],
-        },
-      },
-      {
-        name: McpManager.NOTE_OPEN_TOOL,
-        description:
-          'Open a note in the Obsidian UI. This is a stateful UI operation — it changes the active leaf visible to the user.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            path: {
-              type: 'string',
-              description: 'Vault-relative path of the note to open.',
-            },
-            newLeaf: {
-              type: 'boolean',
-              description:
-                'When true, open in a new tab instead of reusing an existing leaf. Default false.',
-            },
-            line: {
-              type: 'number',
-              description:
-                'Line number (1-indexed) to scroll to after opening.',
-            },
-          },
-          required: ['path'],
-        },
-      },
-      {
-        name: McpManager.VAULT_APPEND_TOOL,
-        description:
-          'Append text to the end of a vault file. Creates the file if it does not exist.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            path: {
-              type: 'string',
-              description: 'Vault-relative file path.',
-            },
-            content: {
-              type: 'string',
-              description: 'Text to append.',
-            },
-            createDirectories: {
-              type: 'boolean',
-              description:
-                'Create missing parent directories. Default true.',
-            },
-            ensureTrailingNewline: {
-              type: 'boolean',
-              description:
-                'Insert a newline before appending if the file does not already end with one. Default false.',
-            },
-          },
-          required: ['path', 'content'],
-        },
-      },
-      {
-        name: McpManager.ACTIVE_NOTE_GET_TOOL,
-        description: 'Read the currently active note in the Obsidian editor.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            format: {
-              type: 'string',
-              enum: ['text', 'note-json', 'document-map'],
-              description:
-                'Output format. text: raw content; note-json: frontmatter + content as JSON; document-map: headings/tags/links structure. Default text.',
-            },
-          },
-          required: [],
-        },
-      },
-      {
-        name: McpManager.ACTIVE_NOTE_PUT_TOOL,
-        description:
-          'Overwrite the full content of the currently active note.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            content: {
-              type: 'string',
-              description: 'New full content for the active note.',
-            },
-          },
-          required: ['content'],
-        },
-      },
-      {
-        name: McpManager.ACTIVE_NOTE_APPEND_TOOL,
-        description: 'Append text to the end of the currently active note.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            content: {
-              type: 'string',
-              description: 'Text to append.',
-            },
-            ensureTrailingNewline: {
-              type: 'boolean',
-              description:
-                'Insert a newline before appending if the note does not end with one. Default false.',
-            },
-          },
-          required: ['content'],
-        },
-      },
-      {
-        name: McpManager.ACTIVE_NOTE_DELETE_TOOL,
-        description:
-          'DESTRUCTIVE: Move the currently active note to the system trash.',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-          required: [],
-        },
-      },
-      {
-        name: McpManager.VAULT_GET_TOOL,
-        description:
-          'Read a vault file or directory with richer output formats than vault_read.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            path: {
-              type: 'string',
-              description: 'Vault-relative file or directory path.',
-            },
-            format: {
-              type: 'string',
-              enum: ['text', 'directory', 'note-json', 'document-map'],
-              description:
-                'Output format. text: raw file content (default); directory: folder listing; note-json: frontmatter + content; document-map: headings/tags/links.',
-            },
-          },
-          required: ['path'],
-        },
-      },
-      {
-        name: McpManager.SEARCH_SIMPLE_TOOL,
-        description:
-          'Search vault notes by filename or content. Returns matching files with match type and an optional context snippet.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            query: {
-              type: 'string',
-              description: 'Text to search for (case-insensitive).',
-            },
-            contextLength: {
-              type: 'number',
-              description:
-                'Characters of surrounding context to include for content matches. Default 100.',
-            },
-            limit: {
-              type: 'number',
-              description: 'Maximum number of results to return. Default 20.',
-            },
-          },
-          required: ['query'],
-        },
-      },
-      {
-        name: McpManager.COMMAND_EXECUTE_TOOL,
-        description:
-          'STATEFUL: Execute an Obsidian command by its ID. Use commands_list to discover valid IDs. Commands can trigger broad side effects.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            commandId: {
-              type: 'string',
-              description: 'The Obsidian command ID to execute.',
-            },
-          },
-          required: ['commandId'],
-        },
-      },
-      {
-        name: McpManager.SEARCH_DATAVIEW_TOOL,
-        description:
-          'Execute a Dataview DQL query against the vault. Requires the Dataview plugin to be installed and enabled.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            query: {
-              type: 'string',
-              description: 'Dataview DQL query string.',
-            },
-          },
-          required: ['query'],
-        },
-      },
-      {
-        name: McpManager.SEARCH_JSONLOGIC_TOOL,
-        description:
-          'Filter vault notes by metadata using a JSONLogic expression. Supported operators: ==, !=, <, <=, >, >=, and, or, not, in, var. The var operator accesses note fields: path, basename, extension, size, ctime, mtime, frontmatter.<key>, tags (array of strings).',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            filter: {
-              type: 'object',
-              description: 'JSONLogic filter expression object.',
-            },
-          },
-          required: ['filter'],
-        },
-      },
-    ]
-  }
-
   private isVaultTool(name: string): boolean {
-    return [
-      McpManager.VAULT_LIST_TOOL,
-      McpManager.VAULT_READ_TOOL,
-      McpManager.VAULT_WRITE_TOOL,
-      McpManager.VAULT_EDIT_TOOL,
-      McpManager.VAULT_MKDIR_TOOL,
-      McpManager.VAULT_DELETE_TOOL,
-      McpManager.VAULT_APPEND_TOOL,
-      McpManager.COMMANDS_LIST_TOOL,
-      McpManager.TAGS_LIST_TOOL,
-      McpManager.NOTE_OPEN_TOOL,
-      McpManager.ACTIVE_NOTE_GET_TOOL,
-      McpManager.ACTIVE_NOTE_PUT_TOOL,
-      McpManager.ACTIVE_NOTE_APPEND_TOOL,
-      McpManager.ACTIVE_NOTE_DELETE_TOOL,
-      McpManager.VAULT_GET_TOOL,
-      McpManager.SEARCH_SIMPLE_TOOL,
-      McpManager.COMMAND_EXECUTE_TOOL,
-      McpManager.SEARCH_DATAVIEW_TOOL,
-      McpManager.SEARCH_JSONLOGIC_TOOL,
-    ].includes(name)
+    return getBuiltinToolTier(name) !== null
   }
 
   private async callVaultTool(
@@ -1218,109 +859,6 @@ export class McpManager {
       return `Appended ${content.length} bytes to ${activeFile.path}`
     }
 
-    if (name === McpManager.ACTIVE_NOTE_DELETE_TOOL) {
-      const activeFile = this.app.workspace.getActiveFile()
-      if (!activeFile) {
-        throw new Error('active_note_delete: no active file')
-      }
-      const filePath = activeFile.path
-      await this.app.vault.trash(activeFile, true)
-      return `Moved to trash: ${filePath}`
-    }
-
-    if (name === McpManager.VAULT_GET_TOOL) {
-      const rawPath = args?.path
-      if (typeof rawPath !== 'string' || rawPath.trim().length === 0) {
-        throw new Error('vault_get requires a non-empty "path"')
-      }
-      const relativePath = this.normalizeVaultPath(rawPath)
-      const format =
-        typeof args?.format === 'string' ? args.format : 'text'
-
-      if (format === 'directory') {
-        const listed = await adapter.list(relativePath)
-        return JSON.stringify(
-          { path: relativePath, folders: listed.folders, files: listed.files },
-          null,
-          2,
-        )
-      }
-
-      const file = this.app.vault.getFileByPath(relativePath)
-      if (!file) {
-        throw new Error(`vault_get: file not found: ${relativePath}`)
-      }
-
-      if (format === 'text') {
-        return await adapter.read(relativePath)
-      }
-      if (format === 'note-json') {
-        const content = await adapter.read(relativePath)
-        const cache = this.app.metadataCache.getFileCache(file)
-        return JSON.stringify(
-          { path: relativePath, frontmatter: cache?.frontmatter ?? {}, content },
-          null,
-          2,
-        )
-      }
-      if (format === 'document-map') {
-        const cache = this.app.metadataCache.getFileCache(file)
-        return JSON.stringify(
-          {
-            path: relativePath,
-            frontmatter: cache?.frontmatter ?? {},
-            headings: cache?.headings ?? [],
-            tags: (cache?.tags ?? []).map((t) => t.tag),
-            links: cache?.links ?? [],
-          },
-          null,
-          2,
-        )
-      }
-      throw new Error(`vault_get: unknown format "${format}"`)
-    }
-
-    if (name === McpManager.SEARCH_SIMPLE_TOOL) {
-      const query = args?.query
-      if (typeof query !== 'string' || query.trim().length === 0) {
-        throw new Error('search_simple requires a non-empty "query"')
-      }
-      const contextLength =
-        typeof args?.contextLength === 'number' ? args.contextLength : 100
-      const limit = typeof args?.limit === 'number' ? args.limit : 20
-
-      const queryLower = query.toLowerCase()
-      const allFiles = this.app.vault.getMarkdownFiles()
-      const results: Array<{
-        path: string
-        matchType: 'filename' | 'content'
-        context?: string
-      }> = []
-
-      for (const file of allFiles) {
-        if (results.length >= limit) break
-        if (file.name.toLowerCase().includes(queryLower)) {
-          results.push({ path: file.path, matchType: 'filename' })
-          continue
-        }
-        const content = await this.app.vault.cachedRead(file)
-        const idx = content.toLowerCase().indexOf(queryLower)
-        if (idx !== -1) {
-          const start = Math.max(0, idx - Math.floor(contextLength / 2))
-          const end = Math.min(
-            content.length,
-            idx + query.length + Math.floor(contextLength / 2),
-          )
-          results.push({
-            path: file.path,
-            matchType: 'content',
-            context: content.slice(start, end),
-          })
-        }
-      }
-      return JSON.stringify(results, null, 2)
-    }
-
     if (name === McpManager.COMMAND_EXECUTE_TOOL) {
       const commandId = args?.commandId
       if (typeof commandId !== 'string' || commandId.trim().length === 0) {
@@ -1375,38 +913,6 @@ export class McpManager {
         )
       }
       return JSON.stringify(result.value, null, 2)
-    }
-
-    if (name === McpManager.SEARCH_JSONLOGIC_TOOL) {
-      const filter = args?.filter
-      if (
-        filter === null ||
-        typeof filter !== 'object' ||
-        Array.isArray(filter)
-      ) {
-        throw new Error('search_jsonlogic requires an object "filter"')
-      }
-
-      const allFiles = this.app.vault.getMarkdownFiles()
-      const matches: string[] = []
-
-      for (const file of allFiles) {
-        const cache = this.app.metadataCache.getFileCache(file)
-        const noteData: Record<string, unknown> = {
-          path: file.path,
-          basename: file.basename,
-          extension: file.extension,
-          size: file.stat.size,
-          ctime: file.stat.ctime,
-          mtime: file.stat.mtime,
-          frontmatter: cache?.frontmatter ?? {},
-          tags: (cache?.tags ?? []).map((t) => t.tag),
-        }
-        if (McpManager.applyJsonLogic(filter, noteData)) {
-          matches.push(file.path)
-        }
-      }
-      return JSON.stringify(matches, null, 2)
     }
 
     throw new Error(`Unsupported vault tool: ${name}`)
@@ -1469,96 +975,4 @@ export class McpManager {
     }
   }
 
-  /**
-   * Minimal JSONLogic evaluator supporting the operators advertised in the
-   * search_jsonlogic tool description.
-   */
-  private static applyJsonLogic(
-    rule: unknown,
-    data: Record<string, unknown>,
-  ): unknown {
-    if (rule === null || typeof rule !== 'object') return rule
-    if (Array.isArray(rule)) {
-      return (rule as unknown[]).map((r) =>
-        McpManager.applyJsonLogic(r, data),
-      )
-    }
-
-    const entries = Object.entries(rule as Record<string, unknown>)
-    if (entries.length !== 1) return rule
-
-    const [op, rawArgs] = entries[0]
-
-    // var must resolve before evaluating other operands
-    if (op === 'var') {
-      const key =
-        typeof rawArgs === 'string' ? rawArgs : String(rawArgs ?? '')
-      if (key === '') return data
-      const parts = key.split('.')
-      let val: unknown = data
-      for (const part of parts) {
-        if (val === null || val === undefined || typeof val !== 'object')
-          return null
-        val = (val as Record<string, unknown>)[part]
-      }
-      return val ?? null
-    }
-
-    // Lazy operators (short-circuit)
-    if (op === 'and') {
-      const items = Array.isArray(rawArgs) ? (rawArgs as unknown[]) : [rawArgs]
-      for (const item of items) {
-        const v = McpManager.applyJsonLogic(item, data)
-        if (!v) return v
-      }
-      return true
-    }
-    if (op === 'or') {
-      const items = Array.isArray(rawArgs) ? (rawArgs as unknown[]) : [rawArgs]
-      for (const item of items) {
-        const v = McpManager.applyJsonLogic(item, data)
-        if (v) return v
-      }
-      return false
-    }
-
-    // Evaluate all arguments eagerly for the remaining operators
-    const evalArgs = (
-      Array.isArray(rawArgs) ? (rawArgs as unknown[]) : [rawArgs]
-    ).map((a) => McpManager.applyJsonLogic(a, data))
-
-    switch (op) {
-      case '==':
-        // eslint-disable-next-line eqeqeq
-        return evalArgs[0] == evalArgs[1]
-      case '===':
-        return evalArgs[0] === evalArgs[1]
-      case '!=':
-        // eslint-disable-next-line eqeqeq
-        return evalArgs[0] != evalArgs[1]
-      case '!==':
-        return evalArgs[0] !== evalArgs[1]
-      case '>':
-        return (evalArgs[0] as number) > (evalArgs[1] as number)
-      case '>=':
-        return (evalArgs[0] as number) >= (evalArgs[1] as number)
-      case '<':
-        return (evalArgs[0] as number) < (evalArgs[1] as number)
-      case '<=':
-        return (evalArgs[0] as number) <= (evalArgs[1] as number)
-      case '!':
-      case 'not':
-        return !evalArgs[0]
-      case 'in':
-        if (Array.isArray(evalArgs[1]))
-          return (evalArgs[1] as unknown[]).includes(evalArgs[0])
-        if (typeof evalArgs[1] === 'string')
-          return (evalArgs[1] as string).includes(String(evalArgs[0]))
-        return false
-      case 'cat':
-        return evalArgs.map(String).join('')
-      default:
-        return null
-    }
-  }
 }

@@ -1,16 +1,15 @@
 /**
  * SearchToolPack — 搜索工具包（Phase 3）
  *
- * 包含：tags_list, search_simple, search_dataview, search_jsonlogic
+ * 包含：tags_list, search_text, search_dataview
  * tags_list 归入此包（语义上属于"检索"范畴）。
  */
 
 import { App } from 'obsidian'
 
 import type { ToolEntry, ToolRegistry } from '../ToolRegistry'
-import { applyJsonLogic } from '../vault-utils'
 
-/** search_simple / search_text 共享实现 */
+/** search_text handler */
 function makeSearchTextHandler(app: App): ToolEntry['handler'] {
   return async (args) => {
     const query = args?.query
@@ -87,33 +86,6 @@ export class SearchToolPack {
         tool: {
           name: 'search_text',
           description:
-            'Search vault notes by filename or content (alias for search_simple, preferred name going forward). Returns matching files with match type and an optional context snippet.',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              query: { type: 'string', description: 'Text to search for (case-insensitive).' },
-              contextLength: {
-                type: 'number',
-                description: 'Characters of surrounding context to include for content matches. Default 100.',
-              },
-              limit: {
-                type: 'number',
-                description: 'Maximum number of results to return. Default 20.',
-              },
-            },
-            required: ['query'],
-          },
-        },
-        tier: 'read-only',
-        source: 'builtin',
-        approvalRequired: false,
-        handler: makeSearchTextHandler(app),
-      },
-
-      {
-        tool: {
-          name: 'search_simple',
-          description:
             'Search vault notes by filename or content. Returns matching files with match type and an optional context snippet.',
           inputSchema: {
             type: 'object',
@@ -169,46 +141,6 @@ export class SearchToolPack {
           if (!result.successful)
             throw new Error(`search_dataview: query failed: ${result.error ?? 'unknown error'}`)
           return JSON.stringify(result.value, null, 2)
-        },
-      },
-
-      {
-        tool: {
-          name: 'search_jsonlogic',
-          description:
-            'Filter vault notes by metadata using a JSONLogic expression. Supported operators: ==, !=, <, <=, >, >=, and, or, not, in, var. The var operator accesses note fields: path, basename, extension, size, ctime, mtime, frontmatter.<key>, tags (array of strings).',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              filter: { type: 'object', description: 'JSONLogic filter expression object.' },
-            },
-            required: ['filter'],
-          },
-        },
-        tier: 'read-only',
-        source: 'builtin',
-        approvalRequired: false,
-        handler: async (args) => {
-          const filter = args?.filter
-          if (filter === null || typeof filter !== 'object' || Array.isArray(filter))
-            throw new Error('search_jsonlogic requires an object "filter"')
-          const allFiles = app.vault.getMarkdownFiles()
-          const matches: string[] = []
-          for (const file of allFiles) {
-            const cache = app.metadataCache.getFileCache(file)
-            const noteData: Record<string, unknown> = {
-              path: file.path,
-              basename: file.basename,
-              extension: file.extension,
-              size: file.stat.size,
-              ctime: file.stat.ctime,
-              mtime: file.stat.mtime,
-              frontmatter: cache?.frontmatter ?? {},
-              tags: (cache?.tags ?? []).map((t) => t.tag),
-            }
-            if (applyJsonLogic(filter, noteData)) matches.push(file.path)
-          }
-          return JSON.stringify(matches, null, 2)
         },
       },
     ]

@@ -2,12 +2,12 @@
  * VaultToolPack — 文件与目录 I/O 工具包（Phase 3）
  *
  * 包含：vault_list, vault_read, vault_write, vault_edit, vault_mkdir,
- *       vault_append, vault_delete, vault_get
+ *       vault_append, vault_delete
  *
  * 从 McpManager.getVaultTools() + callVaultTool() 中提取。
  */
 
-import { App, TFile } from 'obsidian'
+import { App } from 'obsidian'
 
 import type { ToolEntry, ToolRegistry } from '../ToolRegistry'
 import {
@@ -284,76 +284,6 @@ export class VaultToolPack {
           if (!target) throw new Error(`vault_delete: path not found: ${relativePath}`)
           await app.vault.trash(target, true)
           return `Moved to trash: ${relativePath}`
-        },
-      },
-
-      {
-        tool: {
-          name: 'vault_get',
-          description:
-            'Read a vault file or directory with richer output formats than vault_read.',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              path: { type: 'string', description: 'Vault-relative file or directory path.' },
-              format: {
-                type: 'string',
-                enum: ['text', 'directory', 'note-json', 'document-map'],
-                description:
-                  'Output format. text: raw file content (default); directory: folder listing; note-json: frontmatter + content; document-map: headings/tags/links.',
-              },
-            },
-            required: ['path'],
-          },
-        },
-        tier: 'read-only',
-        source: 'builtin',
-        approvalRequired: false,
-        handler: async (args) => {
-          const rawPath = args?.path
-          if (typeof rawPath !== 'string' || rawPath.trim().length === 0)
-            throw new Error('vault_get requires a non-empty "path"')
-          const relativePath = normalizeVaultPath(rawPath)
-          const format = typeof args?.format === 'string' ? args.format : 'text'
-          const a = adapter()
-
-          if (format === 'directory') {
-            const listed = await a.list(relativePath)
-            return JSON.stringify(
-              { path: relativePath, folders: listed.folders, files: listed.files },
-              null,
-              2,
-            )
-          }
-
-          const file = app.vault.getFileByPath(relativePath)
-          if (!file) throw new Error(`vault_get: file not found: ${relativePath}`)
-
-          if (format === 'text') return a.read(relativePath)
-          if (format === 'note-json') {
-            const content = await a.read(relativePath)
-            const cache = app.metadataCache.getFileCache(file as TFile)
-            return JSON.stringify(
-              { path: relativePath, frontmatter: cache?.frontmatter ?? {}, content },
-              null,
-              2,
-            )
-          }
-          if (format === 'document-map') {
-            const cache = app.metadataCache.getFileCache(file as TFile)
-            return JSON.stringify(
-              {
-                path: relativePath,
-                frontmatter: cache?.frontmatter ?? {},
-                headings: cache?.headings ?? [],
-                tags: (cache?.tags ?? []).map((t) => t.tag),
-                links: cache?.links ?? [],
-              },
-              null,
-              2,
-            )
-          }
-          throw new Error(`vault_get: unknown format "${format}"`)
         },
       },
     ]

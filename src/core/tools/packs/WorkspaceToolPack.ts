@@ -1,8 +1,7 @@
 /**
  * WorkspaceToolPack — 活动笔记与 Obsidian UI 工具包（Phase 3）
  *
- * 包含：active_note_get, active_note_put, active_note_append,
- *       active_note_delete, note_open
+ * 包含：active_note_get, active_note_put, active_note_append, note_open
  */
 
 import { App, TFile } from 'obsidian'
@@ -134,24 +133,6 @@ export class WorkspaceToolPack {
           }
           await app.vault.modify(activeFile, existing + content)
           return `Appended ${content.length} bytes to ${activeFile.path}`
-        },
-      },
-
-      {
-        tool: {
-          name: 'active_note_delete',
-          description: 'DESTRUCTIVE: Move the currently active note to the system trash.',
-          inputSchema: { type: 'object', properties: {}, required: [] },
-        },
-        tier: 'danger-zone',
-        source: 'builtin',
-        approvalRequired: true,
-        handler: async () => {
-          const activeFile = app.workspace.getActiveFile()
-          if (!activeFile) throw new Error('active_note_delete: no active file')
-          const filePath = activeFile.path
-          await app.vault.trash(activeFile, true)
-          return `Moved to trash: ${filePath}`
         },
       },
 
