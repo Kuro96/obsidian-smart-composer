@@ -248,7 +248,6 @@ function ToolCallItem({
                 primaryText="Allow"
                 onPrimaryClick={() => {
                   handleToolCall()
-                  setIsOpen(false)
                 }}
                 menuOptions={[
                   ...(canAutoAllow
@@ -258,7 +257,6 @@ function ToolCallItem({
                           onClick: () => {
                             handleToolCall()
                             handleAllowAutoExecution()
-                            setIsOpen(false)
                           },
                         },
                       ]
@@ -268,7 +266,6 @@ function ToolCallItem({
                     onClick: () => {
                       handleToolCall()
                       handleAllowForConversation()
-                      setIsOpen(false)
                     },
                   },
                 ]}

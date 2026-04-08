@@ -11,6 +11,7 @@ import { App } from 'obsidian'
 
 import type { ToolEntry, ToolRegistry } from '../ToolRegistry'
 import { vaultAccessTracker } from '../VaultAccessTracker'
+import { createDiffBlocks } from '../../../utils/chat/diff'
 import {
   ensureParentDirectory,
   getVaultAdapter,
@@ -176,7 +177,28 @@ export class VaultToolPack {
             ? original.split(oldText).join(newText)
             : original.replace(oldText, newText)
           await adapter().write(relativePath, next)
-          return `Edited ${relativePath}; replaced ${replaceAll ? occurrences : 1} occurrence(s)`
+          const diffSummary = createDiffBlocks(original, next)
+            .filter((block) => block.type === 'modified')
+            .slice(0, 2)
+            .map((block) => {
+              const before = block.originalValue?.trim()
+              const after = block.modifiedValue?.trim()
+              return [
+                before ? `Before:\n${before}` : null,
+                after ? `After:\n${after}` : null,
+              ]
+                .filter(Boolean)
+                .join('\n\n')
+            })
+            .filter((block) => block.length > 0)
+            .join('\n\n---\n\n')
+
+          return [
+            `Edited ${relativePath}; replaced ${replaceAll ? occurrences : 1} occurrence(s).`,
+            diffSummary,
+          ]
+            .filter(Boolean)
+            .join('\n\n')
         },
       },
 

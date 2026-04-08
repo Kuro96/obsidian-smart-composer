@@ -26,7 +26,6 @@ import {
 
 const STAGED_REVIEW_TOOLS = new Set([
   'vault_write',
-  'vault_edit',
   'vault_append',
   'note_frontmatter_set',
   'note_frontmatter_delete',
