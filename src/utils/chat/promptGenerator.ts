@@ -30,7 +30,7 @@ import {
 } from '../obsidian'
 
 import { YoutubeTranscript, isYoutubeUrl } from './youtube-transcript'
-import { McpManager, SessionMode } from '../../core/mcp/mcpManager'
+import { McpManager } from '../../core/mcp/mcpManager'
 
 export class PromptGenerator {
   private getRagEngine: () => Promise<RAGEngine>
@@ -53,10 +53,8 @@ export class PromptGenerator {
 
   public async generateRequestMessages({
     messages,
-    sessionMode,
   }: {
     messages: ChatMessage[]
-    sessionMode?: SessionMode
   }): Promise<RequestMessage[]> {
     if (messages.length === 0) {
       throw new Error('No messages provided')
@@ -107,20 +105,9 @@ export class PromptGenerator {
         ? await this.getCurrentFileMessage(currentFile)
         : undefined
 
-    const readOnlyMessage: RequestMessage | null =
-      sessionMode === 'read-only'
-        ? {
-            role: 'user',
-            content: `<session_mode>
-This is a read-only session. You may only use read-only tools to retrieve information from the vault. You must not create, modify, or delete any vault content. Do not call any tool that writes to or deletes files. If the user asks you to make changes, let them know the session is read-only and that they can switch to read/write mode to enable write operations.
-</session_mode>`,
-          }
-        : null
-
     const requestMessages: RequestMessage[] = [
       systemMessage,
       ...(customInstructionMessage ? [customInstructionMessage] : []),
-      ...(readOnlyMessage ? [readOnlyMessage] : []),
       ...(skillMessage ? [skillMessage] : []),
       ...(currentFileMessage ? [currentFileMessage] : []),
       ...this.getChatHistoryMessages({ messages: compiledMessages }),

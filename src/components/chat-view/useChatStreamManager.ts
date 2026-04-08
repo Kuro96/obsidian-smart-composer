@@ -111,6 +111,7 @@ export function useChatStreamManager({
 
       try {
         const mcpManager = await getMcpManager()
+        const capturedSettings = settings
         const harness = new ConversationHarness({
           app,
           providerClient,
@@ -123,6 +124,7 @@ export function useChatStreamManager({
           sessionMode,
           promptGenerator,
           mcpManager,
+          getSettings: () => capturedSettings,
           abortSignal: abortController.signal,
         })
 

@@ -1,17 +1,18 @@
 /**
- * TurnEngine — Phase 2 实现
+ * TurnEngine — Phase 5 更新
  *
- * 单轮流式请求的核心逻辑，从 ResponseGenerator.streamSingleResponse() 提取而来。
- * 负责：构建请求 → 流式调用 LLM → 累积工具调用 → 更新消息状态。
- *
- * 当前（Phase 2-3）：直接依赖 McpManager 和 PromptGenerator。
- * Phase 3 之后：改为依赖 ToolRegistry 和 ContextBuilder。
+ * 单轮流式请求的核心逻辑。
+ * Phase 5 变化：
+ * - 移除 McpManager 依赖（不再调用 listAvailableTools）
+ * - 工具列表改由 run() 传入的 ToolRegistry 提供，按 sessionMode 过滤
+ * - sessionMode 从构造参数移至 run() 选项（每轮可动态传入）
  */
 
 import { v4 as uuidv4 } from 'uuid'
 
 import { BaseLLMProvider } from '../llm/base'
-import { McpManager, SessionMode } from '../mcp/mcpManager'
+import { SessionMode } from '../mcp/mcpManager'
+import type { ToolRegistry } from '../tools/ToolRegistry'
 import { ChatMessage } from '../../types/chat'
 import { ChatModel } from '../../types/chat-model.types'
 import { RequestTool } from '../../types/llm/request'
@@ -29,24 +30,24 @@ export type TurnEngineParams = {
   providerClient: BaseLLMProvider<LLMProvider>
   model: ChatModel
   promptGenerator: PromptGenerator
-  mcpManager: McpManager
-  enableTools: boolean
-  enableSkills: boolean
-  sessionMode: SessionMode
 }
 
 export type TurnEngineRunOptions = {
   /** 本轮所有消息（含历史 + 当前 response 消息） */
   allMessages: ChatMessage[]
+  /**
+   * 工具注册表。null 表示本轮禁用工具（不传 tools 给 LLM）。
+   * Phase 5 开始由 ConversationHarness 在 run() 时传入，而非构造时固定。
+   */
+  registry: ToolRegistry | null
+  /** 当前 session 模式，用于工具可见性过滤 */
+  sessionMode: SessionMode
   abortSignal?: AbortSignal
   /**
    * 消息状态变更回调。
    * TurnEngine 通过此回调通知调用方（ConversationHarness）有新增或变更的消息。
-   * `updater` 接收当前 response messages，返回更新后的列表。
    */
-  onMessagesUpdate: (
-    updater: (prev: ChatMessage[]) => ChatMessage[],
-  ) => void
+  onMessagesUpdate: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void
 }
 
 export type TurnEngineResult = {
@@ -58,19 +59,11 @@ export class TurnEngine {
   private readonly providerClient: BaseLLMProvider<LLMProvider>
   private readonly model: ChatModel
   private readonly promptGenerator: PromptGenerator
-  private readonly mcpManager: McpManager
-  private readonly enableTools: boolean
-  private readonly enableSkills: boolean
-  private readonly sessionMode: SessionMode
 
   constructor(params: TurnEngineParams) {
     this.providerClient = params.providerClient
     this.model = params.model
     this.promptGenerator = params.promptGenerator
-    this.mcpManager = params.mcpManager
-    this.enableTools = params.enableTools
-    this.enableSkills = params.enableSkills
-    this.sessionMode = params.sessionMode
   }
 
   /**
@@ -78,21 +71,15 @@ export class TurnEngine {
    * 通过 `onMessagesUpdate` 实时推送消息变化（增量文本、annotations 等）。
    */
   async run(opts: TurnEngineRunOptions): Promise<TurnEngineResult> {
-    const { allMessages, abortSignal, onMessagesUpdate } = opts
+    const { allMessages, abortSignal, onMessagesUpdate, registry, sessionMode } = opts
 
     // 1. 构建本轮请求消息
     const requestMessages = await this.promptGenerator.generateRequestMessages({
       messages: allMessages,
-      sessionMode: this.sessionMode,
     })
 
-    // 2. 构建工具列表
-    const availableTools = this.enableTools
-      ? await this.mcpManager.listAvailableTools({
-          enableSkill: this.enableSkills,
-          sessionMode: this.sessionMode,
-        })
-      : []
+    // 2. 从 ToolRegistry 获取按 sessionMode 过滤后的工具列表
+    const availableTools = registry ? registry.list({ mode: sessionMode }) : []
 
     const tools: RequestTool[] | undefined =
       availableTools.length > 0
@@ -199,13 +186,7 @@ export class TurnEngine {
                   ...msg,
                   annotations: msg.annotations?.map((a) =>
                     a.type === 'url_citation' && a.url_citation.url === url
-                      ? {
-                          ...a,
-                          url_citation: {
-                            ...a.url_citation,
-                            title: title ?? undefined,
-                          },
-                        }
+                      ? { ...a, url_citation: { ...a.url_citation, title: title ?? undefined } }
                       : a,
                   ),
                 }
@@ -245,10 +226,7 @@ export class TurnEngine {
     const merged = { ...existing }
     for (const tc of incoming) {
       const { index } = tc
-      if (!merged[index]) {
-        merged[index] = tc
-        continue
-      }
+      if (!merged[index]) { merged[index] = tc; continue }
       const prev = merged[index]
       const mergedTc: ToolCallDelta = {
         index,
@@ -272,17 +250,12 @@ export class TurnEngine {
   }
 }
 
-function mergeAnnotations(
-  prev?: Annotation[],
-  next?: Annotation[],
-): Annotation[] | undefined {
+function mergeAnnotations(prev?: Annotation[], next?: Annotation[]): Annotation[] | undefined {
   if (!prev) return next
   if (!next) return prev
   const merged = [...prev]
   for (const a of next) {
-    if (!merged.find((x) => x.url_citation.url === a.url_citation.url)) {
-      merged.push(a)
-    }
+    if (!merged.find((x) => x.url_citation.url === a.url_citation.url)) merged.push(a)
   }
   return merged
 }

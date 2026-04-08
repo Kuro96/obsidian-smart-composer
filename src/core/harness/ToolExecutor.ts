@@ -1,30 +1,30 @@
 /**
- * ToolExecutor — Phase 3 更新
+ * ToolExecutor — Phase 5 更新
  *
  * 工具调用的统一执行入口。
- * Phase 3 开始：通过 ToolRegistry 查找并执行工具，不再直接调用 McpManager.callTool()。
- * 权限判断（isAllowed）仍委托 McpManager，直到 Phase 5 的 ToolPermissionPolicy 完成。
+ * Phase 5 变化：
+ * - isAllowed() 改由 ToolPermissionPolicy 决策，移除对 McpManager.isToolExecutionAllowed() 的依赖
+ * - McpManager 仅保留用于：① 外部 MCP 工具的 callTool() 回退 ② abortToolCall()
  */
 
 import { McpManager } from '../mcp/mcpManager'
 import type { ToolRegistry } from '../tools/ToolRegistry'
+import type { ToolPermissionPolicy } from '../policy/types'
 import { ToolCallResponse, ToolCallResponseStatus } from '../../types/tool-call.types'
 
 export class ToolExecutor {
   constructor(
     private readonly registry: ToolRegistry,
+    private readonly permissionPolicy: ToolPermissionPolicy,
     private readonly mcpManager: McpManager,
   ) {}
 
   /**
    * 判断某工具是否允许自动执行（无需用户审批）。
-   * 仍委托 McpManager.isToolExecutionAllowed()，Phase 5 迁移到 ToolPermissionPolicy。
+   * 委托 ToolPermissionPolicy.getApprovalDecision()。
    */
   isAllowed(toolName: string, conversationId: string): boolean {
-    return this.mcpManager.isToolExecutionAllowed({
-      requestToolName: toolName,
-      conversationId,
-    })
+    return this.permissionPolicy.getApprovalDecision(toolName, conversationId) === 'allow'
   }
 
   /**
@@ -50,11 +50,7 @@ export class ToolExecutor {
     // 通过 ToolRegistry 查找 handler
     const entry = this.registry.resolve(name)
     if (entry) {
-      // 注册表命中：直接调用 handler
       const abortController = new AbortController()
-      if (id !== undefined) {
-        // 记录到 mcpManager 以支持 abort（Phase 5 前的临时做法）
-      }
       if (signal) {
         signal.addEventListener('abort', () => abortController.abort())
       }

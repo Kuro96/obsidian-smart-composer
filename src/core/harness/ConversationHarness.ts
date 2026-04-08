@@ -1,11 +1,12 @@
 /**
- * ConversationHarness — Phase 3 更新
+ * ConversationHarness — Phase 5 更新
  *
  * 会话级执行器，替代 ResponseGenerator 成为 UI 与执行层之间的边界。
- * Phase 3 变化：
- * - 构建 ToolRegistry（通过 buildToolRegistry 工厂），传给 ToolExecutor
- * - ToolExecutor 通过 ToolRegistry 执行工具，不再直接调用 McpManager.callTool()
- * - run() 会等待 registry 异步构建完成后才开始请求
+ * Phase 5 变化：
+ * - 创建并持有 ApprovalPolicyImpl 和 ToolPermissionPolicyImpl
+ * - TurnEngine.run() 改为传入 registry + sessionMode（不再在构造时固定）
+ * - ToolExecutor 使用 ToolPermissionPolicy 决策权限，不再依赖 McpManager.isToolExecutionAllowed()
+ * - enableTools=false 时向 TurnEngine 传入 null registry（工具对 LLM 不可见）
  */
 
 import { App } from 'obsidian'
@@ -13,12 +14,15 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { BaseLLMProvider } from '../llm/base'
 import { McpManager, SessionMode } from '../mcp/mcpManager'
+import { ApprovalPolicyImpl } from '../policy/ApprovalPolicyImpl'
+import { ToolPermissionPolicyImpl } from '../policy/ToolPermissionPolicyImpl'
 import { buildToolRegistry } from '../tools/buildToolRegistry'
 import type { ToolRegistry } from '../tools/ToolRegistry'
 import { ToolRegistryImpl } from '../tools/ToolRegistryImpl'
 import { ChatMessage, ChatToolMessage } from '../../types/chat'
 import { ChatModel } from '../../types/chat-model.types'
 import { LLMProvider } from '../../types/provider.types'
+import type { SmartComposerSettings } from '../../settings/schema/setting.types'
 import { ToolCallResponseStatus } from '../../types/tool-call.types'
 import { PromptGenerator } from '../../utils/chat/promptGenerator'
 
@@ -38,6 +42,8 @@ export type ConversationHarnessParams = {
   sessionMode: SessionMode
   promptGenerator: PromptGenerator
   mcpManager: McpManager
+  /** 用于 ToolPermissionPolicy 读取当前设置（工具自动执行策略等） */
+  getSettings: () => SmartComposerSettings
   abortSignal?: AbortSignal
 }
 
@@ -45,11 +51,16 @@ export class ConversationHarness {
   private readonly receivedMessages: ChatMessage[]
   private readonly conversationId: string
   private readonly maxAutoIterations: number
+  private readonly enableTools: boolean
+  private readonly sessionMode: SessionMode
   private readonly abortSignal?: AbortSignal
   private readonly mcpManager: McpManager
 
   private readonly turnEngine: TurnEngine
   private toolExecutor: ToolExecutor
+
+  /** 构建完成后的 registry，run() 使用 */
+  private builtRegistry: ToolRegistry = new ToolRegistryImpl()
 
   /** 本次响应产生的新消息（不含 receivedMessages） */
   private responseMessages: ChatMessage[] = []
@@ -62,30 +73,40 @@ export class ConversationHarness {
     this.receivedMessages = params.messages
     this.conversationId = params.conversationId
     this.maxAutoIterations = Math.max(1, params.maxAutoIterations)
+    this.enableTools = params.enableTools
+    this.sessionMode = params.sessionMode
     this.abortSignal = params.abortSignal
     this.mcpManager = params.mcpManager
 
-    // 初始化空 registry 作为占位（run() 调用前会被替换）
-    const emptyRegistry: ToolRegistry = new ToolRegistryImpl()
-    this.toolExecutor = new ToolExecutor(emptyRegistry, params.mcpManager)
+    // 初始化占位（run() 调用前会被替换）
+    const approvalPolicy = new ApprovalPolicyImpl()
+    const emptyRegistry = new ToolRegistryImpl()
+    const emptyPermissionPolicy = new ToolPermissionPolicyImpl(
+      emptyRegistry,
+      approvalPolicy,
+      params.getSettings,
+    )
+    this.toolExecutor = new ToolExecutor(emptyRegistry, emptyPermissionPolicy, params.mcpManager)
 
-    // 异步构建 registry，完成后替换 toolExecutor
+    // 异步构建 registry，完成后创建真正的 policy 和 executor
     this.registryReady = buildToolRegistry({
       app: params.app,
       mcpManager: params.mcpManager,
       enableSkills: params.enableSkills,
     }).then((registry) => {
-      this.toolExecutor = new ToolExecutor(registry, params.mcpManager)
+      this.builtRegistry = registry
+      const permissionPolicy = new ToolPermissionPolicyImpl(
+        registry,
+        approvalPolicy,
+        params.getSettings,
+      )
+      this.toolExecutor = new ToolExecutor(registry, permissionPolicy, params.mcpManager)
     })
 
     this.turnEngine = new TurnEngine({
       providerClient: params.providerClient,
       model: params.model,
       promptGenerator: params.promptGenerator,
-      mcpManager: params.mcpManager,
-      enableTools: params.enableTools,
-      enableSkills: params.enableSkills,
-      sessionMode: params.sessionMode,
     })
   }
 
@@ -105,6 +126,9 @@ export class ConversationHarness {
     // 确保 registry 已构建完成
     await this.registryReady
 
+    // enableTools=false 时传 null，TurnEngine 不向 LLM 暴露任何工具
+    const registry = this.enableTools ? this.builtRegistry : null
+
     for (let i = 0; i < this.maxAutoIterations; i++) {
       const allMessages = [
         ...this.receivedMessages,
@@ -113,6 +137,8 @@ export class ConversationHarness {
 
       const { toolCallRequests } = await this.turnEngine.run({
         allMessages,
+        registry,
+        sessionMode: this.sessionMode,
         abortSignal: this.abortSignal,
         onMessagesUpdate: (updater) => {
           this.responseMessages = updater(this.responseMessages)

@@ -87,6 +87,29 @@ export const smartComposerSettingsSchema = z.object({
   mcp: z
     .object({
       servers: z.array(mcpServerConfigSchema).catch([]),
+      // Phase 5: builtin MCP policy (optional, backward-compat with defaultAllowBuiltinReadWrite)
+      builtin: z
+        .object({
+          policy: z
+            .object({
+              readOnlyDefault: z.enum(['allow', 'ask', 'deny']).catch('allow'),
+              readWriteDefault: z.enum(['allow', 'ask', 'deny']).catch('ask'),
+              dangerousDefault: z.enum(['allow', 'ask', 'deny']).catch('ask'),
+            })
+            .catch({ readOnlyDefault: 'allow', readWriteDefault: 'ask', dangerousDefault: 'ask' }),
+          toolOptions: z
+            .record(
+              z.string(),
+              z
+                .object({
+                  enabled: z.boolean().optional(),
+                  autoExecute: z.boolean().optional(),
+                })
+                .catch({}),
+            )
+            .catch({}),
+        })
+        .optional(),
     })
     .catch({
       servers: [],

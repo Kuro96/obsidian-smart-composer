@@ -152,7 +152,6 @@ export class ResponseGenerator {
   }> {
     const requestMessages = await this.promptGenerator.generateRequestMessages({
       messages: [...this.receivedMessages, ...this.responseMessages],
-      sessionMode: this.sessionMode,
     })
 
     const availableTools = this.enableTools
