@@ -109,28 +109,19 @@ ${
   modelPromptLevel == PromptLevel.Default
     ? `4. Respond in the same language as the user's message.
 
-5. When writing out new markdown blocks, also wrap them with <smtcmp_block> tags. For example:
-<smtcmp_block language="markdown">
-{{ content }}
-</smtcmp_block>
+5. If the task requires reading, modifying, moving, deleting, or querying vault content, prefer the corresponding built-in tools over describing manual steps.
 
-6. When providing markdown blocks for an existing file, add the filename and language attributes to the <smtcmp_block> tags. Restate the relevant section or heading, so the user knows which part of the file you are editing. For example:
-<smtcmp_block filename="path/to/file.md" language="markdown">
-## Section Title
-...
-{{ content }}
-...
-</smtcmp_block>
+6. Prefer the most specific tool available for the job:
+   - Use \`vault_read\` for reading files.
+   - Use \`vault_edit\` for normal file updates.
+   - Use \`vault_write\` only for creating new files or near-complete rewrites.
+   - Use \`note_frontmatter_set\` or \`note_frontmatter_delete\` for frontmatter changes instead of editing YAML manually.
+   - Use \`vault_move\` for rename or move operations.
+   - Use query/search tools before blindly reading many files.
 
-7. When the user is asking for edits to their markdown, please provide a simplified version of the markdown block emphasizing only the changes. Use comments to show where unchanged content has been skipped. Wrap the markdown block with <smtcmp_block> tags. Add filename and language attributes to the <smtcmp_block> tags. For example:
-<smtcmp_block filename="path/to/file.md" language="markdown">
-<!-- ... existing content ... -->
-{{ edit_1 }}
-<!-- ... existing content ... -->
-{{ edit_2 }}
-<!-- ... existing content ... -->
-</smtcmp_block>
-The user has full access to the file, so they prefer seeing only the changes in the markdown. Often this will mean that the start/end of the file will be skipped, but that's okay! Rewrite the entire file only if specifically requested. Always provide a brief explanation of the updates, except when the user specifically asks for just the content.
+7. When a relevant tool can perform the action, do not ask the user to manually apply edits that you could perform through tools.
+
+8. If tools are not suitable for the request, provide the smallest useful markdown snippet or explanation. Do not use <smtcmp_block> tags for normal editing responses.
 `
     : ''
 }`
@@ -145,22 +136,18 @@ ${
   modelPromptLevel == PromptLevel.Default
     ? `3. Respond in the same language as the user's message.
 
-4. When referencing markdown blocks in your answer, keep the following guidelines in mind:
+4. Use built-in tools whenever the task requires reading, modifying, moving, deleting, or querying vault content.
 
-  a. Never include line numbers in the output markdown.
+5. Prefer the most specific tool available for the job:
+   - Use \`vault_read\` for reading files.
+   - Use \`vault_edit\` for normal file updates.
+   - Use \`vault_write\` only for creating new files or near-complete rewrites.
+   - Use \`note_frontmatter_set\` or \`note_frontmatter_delete\` for frontmatter changes.
+   - Use \`vault_move\` for rename or move operations.
 
-  b. Wrap the markdown block with <smtcmp_block> tags. Include language attribute. For example:
-  <smtcmp_block language="markdown">
-  {{ content }}
-  </smtcmp_block>
+6. When quoting or summarizing provided markdown snippets, never include any \`line_number|\` prefixes in the output.
 
-  c. When providing markdown blocks for an existing file, also include the filename attribute to the <smtcmp_block> tags. For example:
-  <smtcmp_block filename="path/to/file.md" language="markdown">
-  {{ content }}
-  </smtcmp_block>
-
-  d. When referencing a markdown block the user gives you, only add the startLine and endLine attributes to the <smtcmp_block> tags. Write related content outside of the <smtcmp_block> tags. The content inside the <smtcmp_block> tags will be ignored and replaced with the actual content of the markdown block. For example:
-  <smtcmp_block filename="path/to/file.md" language="markdown" startLine="2" endLine="30"></smtcmp_block>`
+7. If tools are not suitable for the request, provide the smallest useful markdown snippet or explanation. Do not use <smtcmp_block> tags for normal editing responses.`
     : ''
 }`
 
@@ -212,10 +199,7 @@ ${customInstruction}
   private getRagInstructionMessage(): RequestMessage {
     return {
       role: 'user',
-      content: `If you need to reference any of the markdown blocks I gave you, add the startLine and endLine attributes to the <smtcmp_block> tags without any content inside. For example:
-<smtcmp_block filename="path/to/file.md" language="markdown" startLine="200" endLine="310"></smtcmp_block>
-
-When writing out new markdown blocks, remember not to include "line_number|" at the beginning of each line.`,
+      content: `When referencing or quoting the markdown snippets I gave you, do not include "line_number|" prefixes in the output. Quote only the relevant excerpt in normal markdown when needed, and prefer tools for any real vault operation.`,
     }
   }
 
