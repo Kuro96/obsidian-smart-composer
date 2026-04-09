@@ -111,14 +111,14 @@ export function McpSection({ app, plugin }: McpSectionProps) {
         </div>
       </div>
 
-      {mcpManager?.disabled ? (
+      {mcpManager?.externalServersDisabled ? (
         <div className="smtcmp-mcp-empty-state">
           <div className="smtcmp-settings-sub-header">
-            MCP is not supported on mobile devices
+            External MCP servers are not supported on mobile devices
           </div>
           <div className="smtcmp-settings-desc">
-            Open Smart Composer on desktop to manage servers and tool
-            permissions.
+            Built-in tools are available on mobile. Open Smart Composer on
+            desktop to manage external MCP servers.
           </div>
         </div>
       ) : (

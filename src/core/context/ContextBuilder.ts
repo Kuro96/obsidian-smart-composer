@@ -188,9 +188,6 @@ ${customInstruction}
       return null
     }
     const mcpManager = await this.getMcpManager()
-    if (mcpManager.disabled) {
-      return null
-    }
     const section = await mcpManager.getSkillPromptSection()
     return {
       role: 'system',
