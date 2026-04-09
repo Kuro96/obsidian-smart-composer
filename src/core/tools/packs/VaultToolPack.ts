@@ -11,7 +11,7 @@ import { App } from 'obsidian'
 
 import type { ToolEntry, ToolRegistry } from '../ToolRegistry'
 import { vaultAccessTracker } from '../VaultAccessTracker'
-import { createDiffBlocks } from '../../../utils/chat/diff'
+import { createUnifiedDiffLines } from '../../../utils/chat/diff'
 import {
   ensureParentDirectory,
   getVaultAdapter,
@@ -177,21 +177,12 @@ export class VaultToolPack {
             ? original.split(oldText).join(newText)
             : original.replace(oldText, newText)
           await adapter().write(relativePath, next)
-          const diffSummary = createDiffBlocks(original, next)
-            .filter((block) => block.type === 'modified')
-            .slice(0, 2)
-            .map((block) => {
-              const before = block.originalValue?.trim()
-              const after = block.modifiedValue?.trim()
-              return [
-                before ? `Before:\n${before}` : null,
-                after ? `After:\n${after}` : null,
-              ]
-                .filter(Boolean)
-                .join('\n\n')
-            })
-            .filter((block) => block.length > 0)
-            .join('\n\n---\n\n')
+          const PREFIX = { context: ' ', added: '+', removed: '-', 'hunk-header': '' } as const
+          const diffSummary = createUnifiedDiffLines(original, next)
+            .map((l) =>
+              l.type === 'hunk-header' ? l.content : `${PREFIX[l.type]}${l.content}`,
+            )
+            .join('\n')
 
           return [
             `Edited ${relativePath}; replaced ${replaceAll ? occurrences : 1} occurrence(s).`,

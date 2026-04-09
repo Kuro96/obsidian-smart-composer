@@ -7,7 +7,7 @@ import {
   Loader2,
   X,
 } from 'lucide-react'
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useMcp } from '../../contexts/mcp-context'
 import { usePlugin } from '../../contexts/plugin-context'
@@ -25,7 +25,6 @@ import {
 import { SplitButton } from '../common/SplitButton'
 
 import { ObsidianCodeBlock } from './ObsidianMarkdown'
-import { createDiffBlocks } from '../../utils/chat/diff'
 
 const STATUS_LABELS: Record<ToolCallResponseStatus, string> = {
   [ToolCallResponseStatus.PendingApproval]: 'Call',
@@ -182,6 +181,36 @@ function ToolCallItem({
     }
   }, [request.arguments])
 
+  const openReviewForProposal = useCallback(
+    (proposal: ProposedToolReview) => {
+      plugin.openApplyView({
+        proposal,
+        onAccept: (finalAfterText: string) => {
+          const updatedProposal = { ...proposal, afterText: finalAfterText }
+          handleApplyReviewed(updatedProposal)
+          setIsOpen(false)
+        },
+        onReject: () => {
+          handleReject()
+          setIsOpen(false)
+        },
+      })
+    },
+    [plugin, handleApplyReviewed, handleReject],
+  )
+
+  // Auto-open ApplyView when entering PendingReview
+  const hasAutoOpened = useRef(false)
+  useEffect(() => {
+    if (
+      response.status === ToolCallResponseStatus.PendingReview &&
+      !hasAutoOpened.current
+    ) {
+      hasAutoOpened.current = true
+      openReviewForProposal(response.proposal)
+    }
+  }, [response.status, response, openReviewForProposal])
+
   return (
     <div
       className={clsx(
@@ -226,12 +255,10 @@ function ToolCallItem({
             </div>
           )}
           {response.status === ToolCallResponseStatus.PendingReview && (
-            <ReviewProposal proposal={response.proposal} />
+            <div className="smtcmp-toolcall-content-section">
+              <div>{response.proposal.summary}</div>
+            </div>
           )}
-          {response.status === ToolCallResponseStatus.Success &&
-            response.data.proposal && (
-              <ReviewProposal proposal={response.data.proposal} />
-            )}
         </div>
       )}
       {isDangerZone &&
@@ -244,11 +271,8 @@ function ToolCallItem({
             </span>
           </div>
         )}
-      {((response.status === ToolCallResponseStatus.PendingApproval ||
-        response.status === ToolCallResponseStatus.PendingReview) ||
-        response.status === ToolCallResponseStatus.Running ||
-        (response.status === ToolCallResponseStatus.Success &&
-          !!response.data.proposal)) && (
+      {(response.status === ToolCallResponseStatus.PendingApproval ||
+        response.status === ToolCallResponseStatus.Running) && (
         <div className="smtcmp-toolcall-footer">
           {response.status === ToolCallResponseStatus.PendingApproval && (
             <div className="smtcmp-toolcall-footer-actions">
@@ -288,42 +312,11 @@ function ToolCallItem({
               </button>
             </div>
           )}
-          {response.status === ToolCallResponseStatus.PendingReview && (
-            <div className="smtcmp-toolcall-footer-actions">
-              <button onClick={() => plugin.openReviewView(response.proposal)}>
-                Open review
-              </button>
-              <button
-                onClick={() => {
-                  handleApplyReviewed(response.proposal)
-                  setIsOpen(false)
-                }}
-              >
-                Apply
-              </button>
-              <button
-                onClick={() => {
-                  handleReject()
-                  setIsOpen(false)
-                }}
-              >
-                Reject
-              </button>
-            </div>
-          )}
           {response.status === ToolCallResponseStatus.Running && (
             <div className="smtcmp-toolcall-footer-actions">
               <button onClick={handleAbort}>Abort</button>
             </div>
           )}
-          {response.status === ToolCallResponseStatus.Success &&
-            response.data.proposal && (
-              <div className="smtcmp-toolcall-footer-actions">
-                <button onClick={() => plugin.openReviewView(response.data.proposal!)}>
-                  Open review
-                </button>
-              </div>
-            )}
         </div>
       )}
     </div>
@@ -429,59 +422,6 @@ function useToolCall(
     handleAbort,
     handleApplyReviewed,
   }
-}
-
-function ReviewProposal({ proposal }: { proposal: ProposedToolReview }) {
-  const diffBlocks = useMemo(() => {
-    if (
-      typeof proposal.beforeText !== 'string' ||
-      typeof proposal.afterText !== 'string'
-    ) {
-      return []
-    }
-
-    return createDiffBlocks(proposal.beforeText, proposal.afterText)
-  }, [proposal])
-
-  return (
-    <div className="smtcmp-toolcall-content-section">
-      <div>Review:</div>
-      <ObsidianCodeBlock content={proposal.summary} />
-      {diffBlocks.length > 0 && (
-        <div className="smtcmp-toolcall-review-diff">
-          <div className="smtcmp-inline-title">{proposal.targetPath}</div>
-          {diffBlocks.map((block, index) => (
-            <ApplyStyleDiffBlock key={index} block={block} />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ApplyStyleDiffBlock({ block }: { block: ReturnType<typeof createDiffBlocks>[number] }) {
-  if (block.type === 'unchanged') {
-    return (
-      <div className="smtcmp-diff-block">
-        <div style={{ width: '100%' }}>{block.value}</div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="smtcmp-diff-block-container">
-      {block.originalValue && block.originalValue.length > 0 && (
-        <div className="smtcmp-diff-block removed">
-          <div style={{ width: '100%' }}>{block.originalValue}</div>
-        </div>
-      )}
-      {block.modifiedValue && block.modifiedValue.length > 0 && (
-        <div className="smtcmp-diff-block added">
-          <div style={{ width: '100%' }}>{block.modifiedValue}</div>
-        </div>
-      )}
-    </div>
-  )
 }
 
 function StatusIcon({ status }: { status: ToolCallResponseStatus }) {

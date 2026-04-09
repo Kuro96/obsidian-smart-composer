@@ -95,6 +95,7 @@ export class ConversationHarness {
       emptyPermissionPolicy,
       params.mcpManager,
       params.app,
+      params.getSettings,
     )
 
     // 异步构建 registry，完成后创建真正的 policy 和 executor
@@ -114,6 +115,7 @@ export class ConversationHarness {
         permissionPolicy,
         params.mcpManager,
         params.app,
+        params.getSettings,
       )
     })
 

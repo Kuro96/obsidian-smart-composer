@@ -1,10 +1,10 @@
 import { Editor, MarkdownView, Notice, Plugin } from 'obsidian'
 
+import { ApplyView, ApplyViewState } from './ApplyView'
 import { ChatView } from './ChatView'
-import { ReviewView } from './ReviewView'
 import { ChatProps } from './components/chat-view/Chat'
 import { InstallerUpdateRequiredModal } from './components/modals/InstallerUpdateRequiredModal'
-import { CHAT_VIEW_TYPE, REVIEW_VIEW_TYPE } from './constants'
+import { APPLY_VIEW_TYPE, CHAT_VIEW_TYPE } from './constants'
 import { McpManager } from './core/mcp/mcpManager'
 import { RAGEngine } from './core/rag/ragEngine'
 import { DatabaseManager } from './database/DatabaseManager'
@@ -19,13 +19,11 @@ import {
 } from './settings/schema/setting.types'
 import { parseSmartComposerSettings } from './settings/schema/settings'
 import { SmartComposerSettingTab } from './settings/SettingTab'
-import { ProposedToolReview } from './types/tool-call.types'
 import { getMentionableBlockData } from './utils/obsidian'
 
 export default class SmartComposerPlugin extends Plugin {
   settings: SmartComposerSettings
   initialChatProps?: ChatProps
-  initialReviewProposal?: ProposedToolReview
   settingsChangeListeners: ((newSettings: SmartComposerSettings) => void)[] = []
   mcpManager: McpManager | null = null
   dbManager: DatabaseManager | null = null
@@ -38,7 +36,7 @@ export default class SmartComposerPlugin extends Plugin {
     await this.loadSettings()
 
     this.registerView(CHAT_VIEW_TYPE, (leaf) => new ChatView(leaf, this))
-    this.registerView(REVIEW_VIEW_TYPE, (leaf) => new ReviewView(leaf, this))
+    this.registerView(APPLY_VIEW_TYPE, (leaf) => new ApplyView(leaf, this))
 
     // This creates an icon in the left ribbon.
     this.addRibbonIcon('wand-sparkles', 'Open smart composer', () =>
@@ -235,24 +233,21 @@ ${validationResult.error.issues.map((v) => v.message).join('\n')}`)
     )
   }
 
-  async openReviewView(proposal: ProposedToolReview) {
-    this.initialReviewProposal = proposal
 
-    const leaf = this.app.workspace.getLeavesOfType(REVIEW_VIEW_TYPE)[0]
+  async openApplyView(state: ApplyViewState) {
+    // Open in main editor area (like opening a note), not sidebar
+    const leaf = this.app.workspace.getLeaf(true)
 
-    await (leaf ?? this.app.workspace.getRightLeaf(false))?.setViewState({
-      type: REVIEW_VIEW_TYPE,
+    await leaf.setViewState({
+      type: APPLY_VIEW_TYPE,
       active: true,
     })
 
-    const reviewLeaf = this.app.workspace.getLeavesOfType(REVIEW_VIEW_TYPE)[0]
-    if (reviewLeaf?.view instanceof ReviewView) {
-      reviewLeaf.view.setProposal(proposal)
+    if (leaf.view instanceof ApplyView) {
+      leaf.view.setApplyState(state)
     }
 
-    if (reviewLeaf) {
-      this.app.workspace.revealLeaf(reviewLeaf)
-    }
+    this.app.workspace.revealLeaf(leaf)
   }
 
   async addSelectionToChat(editor: Editor, view: MarkdownView) {

@@ -228,6 +228,7 @@ export function useChatStreamManager({
         permissionPolicy,
         mcpManager,
         app,
+        () => settings,
       )
 
       return toolExecutor.execute({
@@ -258,6 +259,7 @@ export function useChatStreamManager({
         permissionPolicy,
         mcpManager,
         app,
+        () => settings,
       )
 
       return toolExecutor.applyReview({

@@ -104,6 +104,7 @@ export const smartComposerSettingsSchema = z.object({
                 .object({
                   enabled: z.boolean().optional(),
                   autoExecute: z.boolean().optional(),
+                  autoAcceptReview: z.boolean().optional(),
                 })
                 .catch({}),
             )

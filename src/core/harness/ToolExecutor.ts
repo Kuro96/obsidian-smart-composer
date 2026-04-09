@@ -23,9 +23,11 @@ import {
   ToolCallResponse,
   ToolCallResponseStatus,
 } from '../../types/tool-call.types'
+import { SmartComposerSettings } from '../../settings/schema/setting.types'
 
 const STAGED_REVIEW_TOOLS = new Set([
   'vault_write',
+  'vault_edit',
   'vault_append',
   'note_frontmatter_set',
   'note_frontmatter_delete',
@@ -39,14 +41,29 @@ export class ToolExecutor {
     private readonly permissionPolicy: ToolPermissionPolicy,
     private readonly mcpManager: McpManager,
     private readonly app: App,
+    private readonly getSettings?: () => SmartComposerSettings,
   ) {}
 
   isAllowed(toolName: string, conversationId: string): boolean {
+    // Staged review tools skip PendingApproval — the ApplyView diff UI
+    // serves as the approval mechanism.
+    if (this.shouldStageReview(toolName)) return true
     return this.permissionPolicy.getApprovalDecision(toolName, conversationId) === 'allow'
   }
 
   shouldStageReview(toolName: string): boolean {
     return STAGED_REVIEW_TOOLS.has(toolName)
+  }
+
+  private isAutoAcceptReview(toolName: string): boolean {
+    if (!this.getSettings) return false
+    const settings = this.getSettings()
+    const option = (settings.mcp as {
+      builtin?: {
+        toolOptions?: Record<string, { autoAcceptReview?: boolean }>
+      }
+    }).builtin?.toolOptions?.[toolName]
+    return option?.autoAcceptReview === true
   }
 
   async execute(opts: {
@@ -81,36 +98,24 @@ export class ToolExecutor {
         }
       }
 
-      if (name === 'vault_edit') {
-        try {
-          const proposal = await this.buildVaultEditProposal(parsedArgs)
-          const response = await this.applyReview({
-            proposal,
-            conversationId,
-          })
-          if (response.status === ToolCallResponseStatus.Success) {
-            return {
-              status: ToolCallResponseStatus.Success,
-              data: {
-                ...response.data,
-                proposal,
-              },
-            }
-          }
-          return response
-        } catch (error) {
-          return {
-            status: ToolCallResponseStatus.Error,
-            error: (error as Error).message || 'Unknown error occurred',
-          }
-        }
-      }
-
       if (this.shouldStageReview(name)) {
         try {
+          const proposal = await this.buildReviewProposal(name, parsedArgs)
+
+          if (this.isAutoAcceptReview(name)) {
+            const response = await this.applyReview({ proposal, conversationId })
+            if (response.status === ToolCallResponseStatus.Success) {
+              return {
+                status: ToolCallResponseStatus.Success,
+                data: { ...response.data, proposal },
+              }
+            }
+            return response
+          }
+
           return {
             status: ToolCallResponseStatus.PendingReview,
-            proposal: await this.buildReviewProposal(name, parsedArgs),
+            proposal,
           }
         } catch (error) {
           return {
