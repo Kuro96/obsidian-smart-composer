@@ -449,18 +449,35 @@ function ReviewProposal({ proposal }: { proposal: ProposedToolReview }) {
       <ObsidianCodeBlock content={proposal.summary} />
       {diffBlocks.length > 0 && (
         <div className="smtcmp-toolcall-review-diff">
-          {diffBlocks.map((block, index) =>
-            block.type === 'unchanged' ? null : (
-              <div key={index} className="smtcmp-toolcall-content-section">
-                {block.originalValue && (
-                  <ObsidianCodeBlock content={block.originalValue} />
-                )}
-                {block.modifiedValue && (
-                  <ObsidianCodeBlock content={block.modifiedValue} />
-                )}
-              </div>
-            ),
-          )}
+          <div className="smtcmp-inline-title">{proposal.targetPath}</div>
+          {diffBlocks.map((block, index) => (
+            <ApplyStyleDiffBlock key={index} block={block} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ApplyStyleDiffBlock({ block }: { block: ReturnType<typeof createDiffBlocks>[number] }) {
+  if (block.type === 'unchanged') {
+    return (
+      <div className="smtcmp-diff-block">
+        <div style={{ width: '100%' }}>{block.value}</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="smtcmp-diff-block-container">
+      {block.originalValue && block.originalValue.length > 0 && (
+        <div className="smtcmp-diff-block removed">
+          <div style={{ width: '100%' }}>{block.originalValue}</div>
+        </div>
+      )}
+      {block.modifiedValue && block.modifiedValue.length > 0 && (
+        <div className="smtcmp-diff-block added">
+          <div style={{ width: '100%' }}>{block.modifiedValue}</div>
         </div>
       )}
     </div>

@@ -51,9 +51,6 @@ export class McpManager {
   static readonly COMMANDS_LIST_TOOL = 'commands_list'
   static readonly TAGS_LIST_TOOL = 'tags_list'
   static readonly NOTE_OPEN_TOOL = 'note_open'
-  static readonly ACTIVE_NOTE_GET_TOOL = 'active_note_get'
-  static readonly ACTIVE_NOTE_PUT_TOOL = 'active_note_put'
-  static readonly ACTIVE_NOTE_APPEND_TOOL = 'active_note_append'
   static readonly COMMAND_EXECUTE_TOOL = 'command_execute'
   static readonly SEARCH_DATAVIEW_TOOL = 'search_dataview'
 
@@ -785,78 +782,6 @@ export class McpManager {
       }
       await adapter.write(relativePath, existing + content)
       return `Appended ${content.length} bytes to ${relativePath}`
-    }
-
-    if (name === McpManager.ACTIVE_NOTE_GET_TOOL) {
-      const activeFile = this.app.workspace.getActiveFile()
-      if (!activeFile) {
-        throw new Error('active_note_get: no active file')
-      }
-      const format =
-        typeof args?.format === 'string' ? args.format : 'text'
-
-      if (format === 'text') {
-        return await this.app.vault.cachedRead(activeFile)
-      }
-      if (format === 'note-json') {
-        const content = await this.app.vault.cachedRead(activeFile)
-        const cache = this.app.metadataCache.getFileCache(activeFile)
-        return JSON.stringify(
-          { path: activeFile.path, frontmatter: cache?.frontmatter ?? {}, content },
-          null,
-          2,
-        )
-      }
-      if (format === 'document-map') {
-        const cache = this.app.metadataCache.getFileCache(activeFile)
-        return JSON.stringify(
-          {
-            path: activeFile.path,
-            frontmatter: cache?.frontmatter ?? {},
-            headings: cache?.headings ?? [],
-            tags: (cache?.tags ?? []).map((t) => t.tag),
-            links: cache?.links ?? [],
-          },
-          null,
-          2,
-        )
-      }
-      throw new Error(`active_note_get: unknown format "${format}"`)
-    }
-
-    if (name === McpManager.ACTIVE_NOTE_PUT_TOOL) {
-      const activeFile = this.app.workspace.getActiveFile()
-      if (!activeFile) {
-        throw new Error('active_note_put: no active file')
-      }
-      const content = args?.content
-      if (typeof content !== 'string') {
-        throw new Error('active_note_put requires a string "content"')
-      }
-      await this.app.vault.modify(activeFile, content)
-      return `Wrote ${content.length} bytes to ${activeFile.path}`
-    }
-
-    if (name === McpManager.ACTIVE_NOTE_APPEND_TOOL) {
-      const activeFile = this.app.workspace.getActiveFile()
-      if (!activeFile) {
-        throw new Error('active_note_append: no active file')
-      }
-      const content = args?.content
-      if (typeof content !== 'string') {
-        throw new Error('active_note_append requires a string "content"')
-      }
-      const ensureTrailingNewline = args?.ensureTrailingNewline === true
-      let existing = await this.app.vault.read(activeFile)
-      if (
-        ensureTrailingNewline &&
-        existing.length > 0 &&
-        !existing.endsWith('\n')
-      ) {
-        existing += '\n'
-      }
-      await this.app.vault.modify(activeFile, existing + content)
-      return `Appended ${content.length} bytes to ${activeFile.path}`
     }
 
     if (name === McpManager.COMMAND_EXECUTE_TOOL) {

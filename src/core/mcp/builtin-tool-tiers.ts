@@ -3,7 +3,6 @@ export type BuiltinToolTier = 'read-only' | 'read-write' | 'danger-zone'
 export const BUILTIN_READ_ONLY_TOOLS: string[] = [
   'vault_list',
   'vault_read',
-  'active_note_get',
   'commands_list',
   'tags_list',
   'search_text',
@@ -22,8 +21,6 @@ export const BUILTIN_READ_WRITE_TOOLS: string[] = [
   'vault_edit',
   'vault_mkdir',
   'vault_append',
-  'active_note_put',
-  'active_note_append',
   'note_open',
   'command_execute',
   // Phase 4: metadata write + move
