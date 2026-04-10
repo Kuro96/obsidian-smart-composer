@@ -529,7 +529,7 @@ function McpBuiltInWorkbench({ tools }: { tools: McpTool[] }) {
 
   return (
     <div className="smtcmp-mcp-tool-table smtcmp-mcp-tool-table--builtin">
-      <div className="smtcmp-mcp-tool-detail-controls" style={{ marginBottom: '1rem' }}>
+      <div className="smtcmp-mcp-tool-detail-controls smtcmp-mcp-builtin-group">
         <McpBuiltinPolicyCard
           title="Read-only default"
           description={`Default behavior for read-only built-in tools (${BUILTIN_READ_ONLY_TOOLS.length} tools).`}
@@ -551,7 +551,7 @@ function McpBuiltInWorkbench({ tools }: { tools: McpTool[] }) {
       </div>
 
       {highlightedTools.length > 0 && (
-        <div className="smtcmp-mcp-tool-detail-controls" style={{ marginBottom: '1rem' }}>
+        <div className="smtcmp-mcp-tool-detail-controls smtcmp-mcp-builtin-group">
           {highlightedTools.map((tool) => (
             <McpToolControlCard
               key={tool.name}

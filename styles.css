@@ -1931,7 +1931,7 @@ button.smtcmp-chat-input-model-select {
 
 .smtcmp-mcp-panel-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.95fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--size-4-4);
   align-items: start;
 }
@@ -2025,7 +2025,7 @@ button.smtcmp-chat-input-model-select {
 }
 
 .smtcmp-mcp-servers-header {
-  grid-template-columns: 1fr 128px 64px 88px;
+  grid-template-columns: 1fr 100px 64px 88px;
 }
 
 .smtcmp-mcp-builtin-tools-header {
@@ -2064,7 +2064,7 @@ button.smtcmp-chat-input-model-select {
 }
 
 .smtcmp-mcp-server-row {
-  grid-template-columns: 1fr 128px 64px 88px;
+  grid-template-columns: 1fr 100px 64px 88px;
 }
 
 .smtcmp-mcp-server-row > div {
@@ -2316,6 +2316,10 @@ button.smtcmp-chat-input-model-select {
   flex-direction: column;
   gap: var(--size-4-2);
   margin-top: var(--size-4-3);
+}
+
+.smtcmp-mcp-builtin-group {
+  margin-bottom: var(--size-4-4);
 }
 
 .smtcmp-mcp-tool-control-card {
