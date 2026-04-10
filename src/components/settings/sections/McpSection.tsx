@@ -383,15 +383,19 @@ function McpConnectedToolsWorkbench({
   }
 
   return (
-    <div className="smtcmp-mcp-tool-workbench">
+    <div
+      className={`smtcmp-mcp-tool-workbench${selectedTool ? '' : ' smtcmp-mcp-tool-workbench--no-detail'}`}
+    >
       <div className="smtcmp-mcp-tool-table">
-        <div className="smtcmp-mcp-tool-table-header smtcmp-mcp-tool-table-header--single">
+        <div className="smtcmp-mcp-tool-table-header smtcmp-mcp-tool-table-header--two-col">
           <div>Tool</div>
+          <div>Enabled</div>
         </div>
         {server.tools.map((tool) => (
           <McpConnectedToolRow
             key={tool.name}
             tool={tool}
+            server={server}
             selected={tool.name === selectedTool?.name}
             onSelect={() => onSelectTool(tool.name)}
           />
@@ -402,7 +406,6 @@ function McpConnectedToolsWorkbench({
         <McpToolDetailPanel
           title={selectedTool.name}
           meta={`Connected via ${server.name}`}
-          mode="connected"
           tool={selectedTool}
           server={server}
         />
@@ -413,21 +416,53 @@ function McpConnectedToolsWorkbench({
 
 function McpConnectedToolRow({
   tool,
+  server,
   selected,
   onSelect,
 }: {
   tool: McpTool
+  server: Extract<McpServerState, { status: McpServerStatus.Connected }>
   selected: boolean
   onSelect: () => void
 }) {
+  const { settings, setSettings } = useSettings()
+
+  const isEnabled = !(
+    server.config.toolOptions[tool.name]?.disabled ?? false
+  )
+
+  const handleToggleEnabled = (enabled: boolean) => {
+    const toolOptions = { ...server.config.toolOptions }
+    toolOptions[tool.name] = {
+      disabled: !enabled,
+      allowAutoExecution:
+        toolOptions[tool.name]?.allowAutoExecution ?? false,
+    }
+    setSettings({
+      ...settings,
+      mcp: {
+        ...settings.mcp,
+        servers: settings.mcp.servers.map((s) =>
+          s.id === server.name ? { ...s, toolOptions } : s,
+        ),
+      },
+    })
+  }
+
   return (
     <button
       type="button"
-      className={`smtcmp-mcp-tool-row-button smtcmp-mcp-tool-row-button--single${selected ? ' smtcmp-mcp-tool-row-button--selected' : ''}`}
+      className={`smtcmp-mcp-tool-row-button smtcmp-mcp-tool-row-button--two-col${selected ? ' smtcmp-mcp-tool-row-button--selected' : ''}`}
       onClick={onSelect}
     >
       <div className="smtcmp-mcp-tool-row-main">
         <div className="smtcmp-mcp-tool-name">{tool.name}</div>
+      </div>
+      <div
+        className="smtcmp-mcp-tool-row-toggle"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <ObsidianToggle value={isEnabled} onChange={handleToggleEnabled} />
       </div>
     </button>
   )
@@ -575,46 +610,17 @@ function McpBuiltinPolicyCard({
 function McpToolDetailPanel({
   title,
   meta,
-  mode,
   tool,
   server,
 }: {
   title: string
   meta: string
-  mode: 'builtin' | 'connected'
-  tool?: McpTool
-  server?: Extract<McpServerState, { status: McpServerStatus.Connected }>
+  tool: McpTool
+  server: Extract<McpServerState, { status: McpServerStatus.Connected }>
 }) {
   const { settings, setSettings } = useSettings()
 
-  const handleToggleEnabled = (enabled: boolean) => {
-    if (!tool || !server) return
-
-    const toolOptions = { ...server.config.toolOptions }
-    toolOptions[tool.name] = {
-      disabled: !enabled,
-      allowAutoExecution: toolOptions[tool.name]?.allowAutoExecution ?? false,
-    }
-
-    setSettings({
-      ...settings,
-      mcp: {
-        ...settings.mcp,
-        servers: settings.mcp.servers.map((s) =>
-          s.id === server.name
-            ? {
-                ...s,
-                toolOptions,
-              }
-            : s,
-        ),
-      },
-    })
-  }
-
   const handleToggleAutoExecution = (allowAutoExecution: boolean) => {
-    if (!tool || !server) return
-
     const toolOptions = { ...server.config.toolOptions }
     toolOptions[tool.name] = {
       ...toolOptions[tool.name],
@@ -626,12 +632,7 @@ function McpToolDetailPanel({
       mcp: {
         ...settings.mcp,
         servers: settings.mcp.servers.map((s) =>
-          s.id === server.name
-            ? {
-                ...s,
-                toolOptions,
-              }
-            : s,
+          s.id === server.name ? { ...s, toolOptions } : s,
         ),
       },
     })
@@ -641,31 +642,24 @@ function McpToolDetailPanel({
     <div className="smtcmp-mcp-tool-detail-panel">
       <div className="smtcmp-mcp-tool-detail-kicker">
         <PanelRight size={14} />
-        <span>
-          {mode === 'connected' ? 'Tool Detail' : 'Vault Tool Detail'}
-        </span>
+        <span>Tool Detail</span>
       </div>
       <div className="smtcmp-mcp-tool-detail-title">{title}</div>
       <div className="smtcmp-mcp-tooltip-meta">{meta}</div>
-
-      {mode === 'connected' && tool && server && (
-        <div className="smtcmp-mcp-tool-detail-controls">
-          <McpToolControlCard
-            title="Enabled"
-            description="Turns this tool on or off for the selected server."
-            value={!(server.config.toolOptions[tool.name]?.disabled ?? false)}
-            onChange={handleToggleEnabled}
-          />
-          <McpToolControlCard
-            title="Auto-execute"
-            description="Allows Smart Composer to run this tool without asking first. Turn this on only if you are comfortable with the model taking action immediately for this server."
-            value={
-              server.config.toolOptions[tool.name]?.allowAutoExecution ?? false
-            }
-            onChange={handleToggleAutoExecution}
-          />
-        </div>
+      {tool.description && (
+        <div className="smtcmp-mcp-tool-description">{tool.description}</div>
       )}
+
+      <div className="smtcmp-mcp-tool-detail-controls">
+        <McpToolControlCard
+          title="Auto-execute"
+          description="Allows Smart Composer to run this tool without asking first. Turn this on only if you are comfortable with the model taking action immediately for this server."
+          value={
+            server.config.toolOptions[tool.name]?.allowAutoExecution ?? false
+          }
+          onChange={handleToggleAutoExecution}
+        />
+      </div>
     </div>
   )
 }

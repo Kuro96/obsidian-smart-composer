@@ -2163,6 +2163,10 @@ button.smtcmp-chat-input-model-select {
   grid-template-columns: minmax(0, 1fr) minmax(240px, 0.95fr);
 }
 
+.smtcmp-mcp-tool-workbench--no-detail {
+  grid-template-columns: 1fr;
+}
+
 .smtcmp-mcp-tool-table,
 .smtcmp-mcp-tool-detail-panel,
 .smtcmp-mcp-tools-empty-panel {
@@ -2207,6 +2211,10 @@ button.smtcmp-chat-input-model-select {
   grid-template-columns: 1fr;
 }
 
+.smtcmp-mcp-tool-table-header--two-col {
+  grid-template-columns: minmax(0, 1fr) 56px;
+}
+
 .smtcmp-mcp-builtin-tools-header.smtcmp-mcp-tool-table-header {
   grid-template-columns: minmax(0, 1fr) 96px;
 }
@@ -2236,6 +2244,10 @@ button.smtcmp-chat-input-model-select {
 
 .smtcmp-mcp-tool-row-button--single {
   grid-template-columns: 1fr;
+}
+
+.smtcmp-mcp-tool-row-button--two-col {
+  grid-template-columns: minmax(0, 1fr) 56px;
 }
 
 .smtcmp-mcp-builtin-tool-row-button {
@@ -2447,8 +2459,10 @@ button.smtcmp-chat-input-model-select {
   .smtcmp-mcp-server-row,
   .smtcmp-mcp-tool-workbench,
   .smtcmp-mcp-tool-row-button,
+  .smtcmp-mcp-tool-row-button--two-col,
   .smtcmp-mcp-builtin-tool-row-button,
-  .smtcmp-mcp-tool-table-header {
+  .smtcmp-mcp-tool-table-header,
+  .smtcmp-mcp-tool-table-header--two-col {
     grid-template-columns: 1fr;
   }
 

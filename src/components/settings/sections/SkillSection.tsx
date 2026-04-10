@@ -131,21 +131,38 @@ export function SkillSection({ plugin }: SkillSectionProps) {
             </div>
           </div>
         ) : (
-          <div className="smtcmp-mcp-tool-workbench">
+          <div
+            className={`smtcmp-mcp-tool-workbench${selectedSkill ? '' : ' smtcmp-mcp-tool-workbench--no-detail'}`}
+          >
             <div className="smtcmp-mcp-tool-table">
-              <div className="smtcmp-mcp-tool-table-header smtcmp-mcp-tool-table-header--single">
+              <div className="smtcmp-mcp-tool-table-header smtcmp-mcp-tool-table-header--two-col">
                 <div>Skill</div>
+                <div>Enabled</div>
               </div>
               {skills.map((skill) => {
+                const isEnabled = !(
+                  settings.skills.options[skill.name]?.disabled ?? false
+                )
                 return (
                   <button
                     key={skill.name}
                     type="button"
-                    className={`smtcmp-mcp-tool-row-button smtcmp-mcp-tool-row-button--single${skill.name === selectedSkill?.name ? ' smtcmp-mcp-tool-row-button--selected' : ''}`}
+                    className={`smtcmp-mcp-tool-row-button smtcmp-mcp-tool-row-button--two-col${skill.name === selectedSkill?.name ? ' smtcmp-mcp-tool-row-button--selected' : ''}`}
                     onClick={() => setSelectedSkillName(skill.name)}
                   >
                     <div className="smtcmp-mcp-tool-row-main">
                       <div className="smtcmp-mcp-tool-name">{skill.name}</div>
+                    </div>
+                    <div
+                      className="smtcmp-mcp-tool-row-toggle"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <ObsidianToggle
+                        value={isEnabled}
+                        onChange={(value) =>
+                          void handleToggleSkill(skill.name, value)
+                        }
+                      />
                     </div>
                   </button>
                 )
@@ -164,31 +181,11 @@ export function SkillSection({ plugin }: SkillSectionProps) {
                 <div className="smtcmp-mcp-tooltip-meta">
                   {selectedSkill.location}
                 </div>
-                <div className="smtcmp-mcp-tool-detail-controls">
-                  <div className="smtcmp-mcp-tool-control-card">
-                    <div className="smtcmp-mcp-tool-control-copy">
-                      <div className="smtcmp-mcp-tool-control-title">
-                        Enabled
-                      </div>
-                      <div className="smtcmp-mcp-tool-control-desc">
-                        Allows the built-in skill tool to invoke this skill.
-                      </div>
-                    </div>
-                    <div className="smtcmp-mcp-tool-control-toggle">
-                      <ObsidianToggle
-                        value={
-                          !(
-                            settings.skills.options[selectedSkill.name]
-                              ?.disabled ?? false
-                          )
-                        }
-                        onChange={(value) =>
-                          void handleToggleSkill(selectedSkill.name, value)
-                        }
-                      />
-                    </div>
+                {selectedSkill.description && (
+                  <div className="smtcmp-mcp-tool-description">
+                    {selectedSkill.description}
                   </div>
-                </div>
+                )}
               </div>
             )}
           </div>
