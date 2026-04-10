@@ -93,24 +93,6 @@ export function McpSection({ app, plugin }: McpSectionProps) {
         <span>Tools {toolsEnabled ? 'On' : 'Off'}</span>
       </div>
 
-      <div className="smtcmp-mcp-panel smtcmp-mcp-panel--overview">
-        <div className="smtcmp-settings-sub-header-container smtcmp-mcp-panel-header">
-          <div>
-            <div className="smtcmp-settings-sub-header">Runtime Overview</div>
-            <div className="smtcmp-settings-desc smtcmp-mcp-panel-desc">
-              This area reflects what the model can currently access at runtime. Use the panels below to change saved configuration.
-            </div>
-          </div>
-        </div>
-        <div className="smtcmp-modal-summary-row">
-          <span>Connected servers {connectedServerCount}</span>
-          <span>Enabled servers {enabledServerCount}</span>
-          <span>Remote tools {remoteToolCount}</span>
-          <span>Built-in tools {builtInTools.length}</span>
-          <span>Global tools {toolsEnabled ? 'Enabled' : 'Disabled'}</span>
-        </div>
-      </div>
-
       {mcpManager?.externalServersDisabled ? (
         <div className="smtcmp-mcp-empty-state">
           <div className="smtcmp-settings-sub-header">
