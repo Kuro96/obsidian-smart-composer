@@ -10,7 +10,6 @@
 import { App } from 'obsidian'
 
 import type { ToolEntry, ToolRegistry } from '../ToolRegistry'
-import { vaultAccessTracker } from '../VaultAccessTracker'
 import { createUnifiedDiffLines } from '../../../utils/chat/diff'
 import {
   ensureParentDirectory,
@@ -89,7 +88,7 @@ export class VaultToolPack {
         tool: {
           name: 'vault_write',
           description:
-            'Write UTF-8 text content to a vault-relative file path (full overwrite). Prefer vault_edit for normal file updates. Use vault_write for new files or near-complete rewrites. Read the existing file first before overwriting it. Do not use this to edit frontmatter; use note_frontmatter_set or note_frontmatter_delete instead.',
+            'Write UTF-8 text content to a vault-relative file path (full overwrite). Prefer vault_edit for normal file updates. Use vault_write for new files or near-complete rewrites. Do not use this to edit frontmatter; use note_frontmatter_set or note_frontmatter_delete instead.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -106,7 +105,7 @@ export class VaultToolPack {
         tier: 'read-write',
         source: 'builtin',
         approvalRequired: false,
-        handler: async (args, ctx) => {
+        handler: async (args) => {
           const rawPath = args?.path
           const content = args?.content
           if (typeof rawPath !== 'string' || rawPath.trim().length === 0) {
@@ -117,12 +116,6 @@ export class VaultToolPack {
           }
           const relativePath = normalizeVaultPath(rawPath)
           const a = adapter()
-          const exists = a.exists ? await a.exists(relativePath) : false
-          if (exists && !vaultAccessTracker.hasRead(ctx.conversationId, relativePath)) {
-            throw new Error(
-              `vault_write requires a prior read of ${relativePath} in this chat before overwriting it`,
-            )
-          }
           const createDirs =
             typeof args?.createDirectories === 'boolean' ? args.createDirectories : true
           if (createDirs) await ensureParentDirectory(relativePath, a)

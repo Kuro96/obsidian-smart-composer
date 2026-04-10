@@ -11,7 +11,6 @@ import { App, TFile, TFolder, parseYaml, stringifyYaml } from 'obsidian'
 
 import { McpManager } from '../mcp/mcpManager'
 import type { ToolPermissionPolicy } from '../policy/types'
-import { vaultAccessTracker } from '../tools/VaultAccessTracker'
 import type { ToolRegistry } from '../tools/ToolRegistry'
 import {
   ensureParentDirectory,
@@ -90,14 +89,6 @@ export class ToolExecutor {
 
     const entry = this.registry.resolve(name)
     if (entry) {
-      const guardedPath = this.getReadRequiredPath(name, parsedArgs)
-      if (guardedPath && !vaultAccessTracker.hasRead(conversationId, guardedPath)) {
-        return {
-          status: ToolCallResponseStatus.Error,
-          error: `${name} requires a prior read of ${guardedPath} in this chat. Read the file first with vault_read or note_frontmatter_get.`,
-        }
-      }
-
       if (this.shouldStageReview(name)) {
         try {
           const proposal = await this.buildReviewProposal(name, parsedArgs)
@@ -135,10 +126,6 @@ export class ToolExecutor {
           conversationId,
           signal: abortController.signal,
         })
-        const readPath = this.getReadEvidencePath(name, parsedArgs)
-        if (readPath) {
-          vaultAccessTracker.recordRead(conversationId, readPath)
-        }
         return {
           status: ToolCallResponseStatus.Success,
           data: { type: 'text', text },
@@ -508,38 +495,4 @@ export class ToolExecutor {
     return `---\n${serialized}\n---\n${body.replace(/^\n+/, '')}`
   }
 
-  private getReadEvidencePath(
-    toolName: string,
-    args: Record<string, unknown>,
-  ): string | null {
-    if (toolName !== 'vault_read' && toolName !== 'note_frontmatter_get') {
-      return null
-    }
-
-    const rawPath = args.path
-    return typeof rawPath === 'string' && rawPath.trim().length > 0
-      ? normalizeVaultPath(rawPath)
-      : null
-  }
-
-  private getReadRequiredPath(
-    toolName: string,
-    args: Record<string, unknown>,
-  ): string | null {
-    if (
-      toolName !== 'vault_edit' &&
-      toolName !== 'vault_append' &&
-      toolName !== 'note_frontmatter_set' &&
-      toolName !== 'note_frontmatter_delete' &&
-      toolName !== 'vault_move' &&
-      toolName !== 'vault_write'
-    ) {
-      return null
-    }
-
-    const rawPath = args.path
-    return typeof rawPath === 'string' && rawPath.trim().length > 0
-      ? normalizeVaultPath(rawPath)
-      : null
-  }
 }
