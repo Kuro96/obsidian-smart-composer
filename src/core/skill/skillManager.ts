@@ -1,6 +1,10 @@
 import * as os from 'os'
 import * as path from 'path'
 
+import {
+  getVaultSkillsAbsolutePath,
+  getVaultSkillsRelativePath,
+} from '../agents/agentPaths'
 import { SmartComposerSettings } from '../../settings/schema/setting.types'
 
 type SkillInfo = {
@@ -171,13 +175,14 @@ export class SkillManager {
     const vault = this.getVaultRoot()
     const home = os.homedir()
     const settings = this.getSettings()
+    const vaultSkillsPath = getVaultSkillsRelativePath(settings)
 
     if (vault) {
-      await this.scanAnyRoot(path.join(vault, '.agents', 'skills'), map)
+      await this.scanAnyRoot(getVaultSkillsAbsolutePath(settings, vault), map)
     }
 
-    await this.scanVaultDir('.agents/skills', map)
-    await this.scanVaultAdapterDir('.agents/skills', map)
+    await this.scanVaultDir(vaultSkillsPath, map)
+    await this.scanVaultAdapterDir(vaultSkillsPath, map)
 
     for (const item of settings.skills.paths) {
       const dir = item.startsWith('~/')

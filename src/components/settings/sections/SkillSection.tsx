@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSettings } from '../../../contexts/settings-context'
 import SmartComposerPlugin from '../../../main'
 import { ObsidianButton } from '../../common/ObsidianButton'
+import { ObsidianSetting } from '../../common/ObsidianSetting'
+import { ObsidianTextInput } from '../../common/ObsidianTextInput'
 import { ObsidianToggle } from '../../common/ObsidianToggle'
 
 type SkillSectionProps = {
@@ -46,7 +48,12 @@ export function SkillSection({ plugin }: SkillSectionProps) {
 
   useEffect(() => {
     void loadSkills()
-  }, [loadSkills, settings.skills.paths, settings.skills.urls])
+  }, [
+    loadSkills,
+    settings.agents.directoryName,
+    settings.skills.paths,
+    settings.skills.urls,
+  ])
 
   useEffect(() => {
     if (skills.length === 0) {
@@ -120,6 +127,24 @@ export function SkillSection({ plugin }: SkillSectionProps) {
             />
           </div>
         </div>
+
+        <ObsidianSetting
+          name="Agents directory"
+          desc="Vault-relative folder used for agent assets such as skills. Default: .agents"
+        >
+          <ObsidianTextInput
+            value={settings.agents.directoryName}
+            onChange={async (value) => {
+              await setSettings({
+                ...settings,
+                agents: {
+                  ...settings.agents,
+                  directoryName: value,
+                },
+              })
+            }}
+          />
+        </ObsidianSetting>
 
         {skills.length === 0 ? (
           <div className="smtcmp-mcp-servers-empty">

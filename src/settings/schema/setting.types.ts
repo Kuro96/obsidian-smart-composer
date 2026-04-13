@@ -38,6 +38,10 @@ const skillOptionsSchema = z.object({
     .catch({}),
 })
 
+const agentOptionsSchema = z.object({
+  directoryName: z.string().catch('.agents'),
+})
+
 /**
  * Settings
  */
@@ -73,6 +77,10 @@ export const smartComposerSettingsSchema = z.object({
   // System Prompt
   systemPrompt: z.string().catch(''),
 
+  agents: agentOptionsSchema.catch({
+    directoryName: '.agents',
+  }),
+
   // RAG Options
   ragOptions: ragOptionsSchema.catch({
     chunkSize: 1000,
@@ -96,7 +104,11 @@ export const smartComposerSettingsSchema = z.object({
               readWriteDefault: z.enum(['allow', 'ask', 'deny']).catch('ask'),
               dangerousDefault: z.enum(['allow', 'ask', 'deny']).catch('ask'),
             })
-            .catch({ readOnlyDefault: 'allow', readWriteDefault: 'ask', dangerousDefault: 'ask' }),
+            .catch({
+              readOnlyDefault: 'allow',
+              readWriteDefault: 'ask',
+              dangerousDefault: 'ask',
+            }),
           toolOptions: z
             .record(
               z.string(),

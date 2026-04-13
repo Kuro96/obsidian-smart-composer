@@ -3,7 +3,7 @@ import { smartComposerSettingsSchema } from '../../settings/schema/setting.types
 import { SkillManager } from './skillManager'
 
 describe('SkillManager', () => {
-  function createMockVault() {
+  function createMockVault(agentsDirectoryName = '.agents') {
     type Node = {
       name: string
       path: string
@@ -21,9 +21,10 @@ describe('SkillManager', () => {
       }
     }
 
+    const skillsRoot = `${agentsDirectoryName}/skills`
     const skillMd: Node = {
       name: 'SKILL.md',
-      path: '.agents/skills/tool-skill/SKILL.md',
+      path: `${skillsRoot}/tool-skill/SKILL.md`,
     }
     files[skillMd.path] = `---
 name: tool-skill
@@ -37,22 +38,22 @@ Use this skill.
 
     const demo: Node = {
       name: 'demo.txt',
-      path: '.agents/skills/tool-skill/scripts/demo.txt',
+      path: `${skillsRoot}/tool-skill/scripts/demo.txt`,
     }
     files[demo.path] = 'demo'
 
     const root: Node = {
       name: 'skills',
-      path: '.agents/skills',
+      path: skillsRoot,
       children: [
         {
           name: 'tool-skill',
-          path: '.agents/skills/tool-skill',
+          path: `${skillsRoot}/tool-skill`,
           children: [
             skillMd,
             {
               name: 'scripts',
-              path: '.agents/skills/tool-skill/scripts',
+              path: `${skillsRoot}/tool-skill/scripts`,
               children: [demo],
             },
           ],
@@ -102,5 +103,24 @@ Use this skill.
     expect(out).toContain('Base directory for this skill: vault://')
     expect(out).toContain('<file>')
     expect(out).toContain('demo.txt')
+  })
+
+  it('discovers skills from the configured agents directory', async () => {
+    const vault = createMockVault('.smart-agents')
+    const settings = smartComposerSettingsSchema.parse({
+      agents: {
+        directoryName: '.smart-agents',
+      },
+    })
+    const manager = new SkillManager({
+      getSettings: () => settings,
+      getVaultRoot: () => '/tmp/vault',
+      getVault: () => vault,
+    })
+
+    const list = await manager.list()
+    expect(list).toHaveLength(1)
+    expect(list[0].name).toBe('tool-skill')
+    expect(list[0].vaultPath).toBe('.smart-agents/skills/tool-skill/SKILL.md')
   })
 })

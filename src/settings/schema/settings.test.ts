@@ -28,6 +28,10 @@ describe('parseSmartComposerSettings', () => {
 
       systemPrompt: '',
 
+      agents: {
+        directoryName: '.agents',
+      },
+
       ragOptions: {
         chunkSize: 1000,
         thresholdTokens: 8192,
@@ -67,5 +71,6 @@ describe('parseSmartComposerSettings', () => {
     expect(result.version).toBe(17)
     expect(result.vaultChatEnabled).toBe(true)
     expect(result.systemPrompt).toBe('test prompt')
+    expect(result.agents.directoryName).toBe('.agents')
   })
 })
