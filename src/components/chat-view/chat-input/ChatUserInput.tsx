@@ -23,7 +23,7 @@ import {
   serializeMentionable,
 } from '../../../utils/chat/mentionable'
 import { fileToMentionableImage } from '../../../utils/llm/image'
-import { openMarkdownFile, readTFileContent } from '../../../utils/obsidian'
+import { readTFileContent } from '../../../utils/obsidian'
 import { ObsidianMarkdown } from '../ObsidianMarkdown'
 
 import { ImageUploadButton } from './ImageUploadButton'
@@ -217,19 +217,9 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
                 const mentionableKey = getMentionableKey(
                   serializeMentionable(m),
                 )
-                if (
-                  (m.type === 'current-file' ||
-                    m.type === 'file' ||
-                    m.type === 'block') &&
-                  m.file &&
-                  mentionableKey === displayedMentionableKey
-                ) {
-                  // open file on click again
-                  openMarkdownFile(
-                    app,
-                    m.file.path,
-                    m.type === 'block' ? m.startLine : undefined,
-                  )
+                if (mentionableKey === displayedMentionableKey) {
+                  // collapse preview on click again
+                  setDisplayedMentionableKey(null)
                 } else {
                   setDisplayedMentionableKey(mentionableKey)
                 }
