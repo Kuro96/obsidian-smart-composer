@@ -564,14 +564,18 @@ function McpBuiltInWorkbench({ tools }: { tools: McpTool[] }) {
         </div>
       )}
 
-      <div className="smtcmp-mcp-tool-table-header smtcmp-mcp-tool-table-header--builtin">
-        <div>Tool</div>
-      </div>
-      {tools.map((tool) => (
-        <div key={tool.name} className="smtcmp-mcp-builtin-tool-row-button">
-          <div className="smtcmp-mcp-tool-name">{tool.name}</div>
+      <div className="smtcmp-mcp-builtin-tool-list">
+        <div className="smtcmp-mcp-tool-table-header smtcmp-mcp-tool-table-header--builtin">
+          <div>Tool</div>
         </div>
-      ))}
+        <div className="smtcmp-mcp-builtin-tool-list-scroll">
+          {tools.map((tool) => (
+            <div key={tool.name} className="smtcmp-mcp-builtin-tool-row-button">
+              <div className="smtcmp-mcp-tool-name">{tool.name}</div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
