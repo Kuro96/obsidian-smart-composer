@@ -52,9 +52,16 @@ export const migrateFrom16To17: SettingMigration['migrate'] = (data) => {
   const newData = { ...data }
   newData.version = 17
   newData.vaultChatEnabled = true
+  newData.agents = {
+    directoryName: '.agents',
+    ...(typeof newData.agents === 'object' && newData.agents
+      ? (newData.agents as Record<string, unknown>)
+      : {}),
+  }
 
   newData.providers = getMigratedProviders(newData, DEFAULT_PROVIDERS_V17)
   newData.chatModels = getMigratedChatModels(newData, DEFAULT_CHAT_MODELS_V17)
+  delete newData.systemPrompt
 
   return newData
 }

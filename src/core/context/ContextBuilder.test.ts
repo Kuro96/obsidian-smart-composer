@@ -40,9 +40,8 @@ describe('ContextBuilder', () => {
     },
   ]
 
-  it('prefers AGENTS.md instructions over the legacy system prompt', async () => {
+  it('uses AGENTS.md instructions when present', async () => {
     const settings = smartComposerSettingsSchema.parse({
-      systemPrompt: 'legacy instructions',
       vaultChatEnabled: false,
     })
     const builder = new ContextBuilder(
@@ -68,24 +67,21 @@ local instructions
     })
   })
 
-  it('falls back to the legacy system prompt when no AGENTS.md exists', async () => {
+  it('ignores legacy systemPrompt data when no AGENTS.md exists', async () => {
     const settings = smartComposerSettingsSchema.parse({
+      // unknown legacy fields are stripped during parsing
       systemPrompt: 'legacy instructions',
       vaultChatEnabled: false,
     })
     const builder = new ContextBuilder(createApp() as never, settings)
 
     const messages = await builder.build({ compiledMessages })
-    expect(messages[1]).toEqual({
-      role: 'user',
-      content: `Here are additional instructions to follow in your responses when relevant. There's no need to explicitly acknowledge them:
-<custom_instructions>
-legacy instructions
-</custom_instructions>`,
-    })
+    expect(messages).toHaveLength(2)
+    expect(messages[0].role).toBe('system')
+    expect(messages[1]).toEqual({ role: 'user', content: 'hello' })
   })
 
-  it('omits the instruction message when neither AGENTS.md nor system prompt exists', async () => {
+  it('omits the instruction message when no AGENTS.md exists', async () => {
     const settings = smartComposerSettingsSchema.parse({
       vaultChatEnabled: false,
     })

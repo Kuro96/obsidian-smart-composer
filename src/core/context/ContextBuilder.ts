@@ -14,7 +14,7 @@
  *
  * 新顺序（cache 友好）：
  *   1. 稳定 prefix：system(单一版本，由 settings.vaultChatEnabled 决定，会话级稳定)
- *      → projectInstr(来自 AGENTS.md / settings fallback) → skill(来自 settings/mcp)
+ *      → projectInstr(来自 AGENTS.md) → skill(来自 settings/mcp)
  *   2. 历史消息：含已发送的 user message。currentFile snapshot 在 compileUserMessagePrompt
  *      阶段已嵌入到各 user message 的 promptContent，所以 history 是稳定快照
  *   3. 末尾：rag 引用指令（仅当 vaultChatEnabled，会话级稳定）
@@ -166,9 +166,7 @@ ${
 
   private async getCustomInstructionMessage(): Promise<RequestMessage | null> {
     const agentsManager = new AgentsManager(this.app)
-    const agentsInstructions = (await agentsManager.getSnapshot()).content
-    const customInstruction =
-      agentsInstructions || this.settings.systemPrompt.trim()
+    const customInstruction = (await agentsManager.getSnapshot()).content
     if (!customInstruction) {
       return null
     }

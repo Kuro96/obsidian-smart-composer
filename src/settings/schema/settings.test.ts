@@ -26,8 +26,6 @@ describe('parseSmartComposerSettings', () => {
       applyModelId: DEFAULT_APPLY_MODEL_ID,
       embeddingModelId: 'openai/text-embedding-3-small',
 
-      systemPrompt: '',
-
       agents: {
         directoryName: '.agents',
       },
@@ -70,7 +68,7 @@ describe('parseSmartComposerSettings', () => {
     expect(result.version).toBe(SETTINGS_SCHEMA_VERSION)
     expect(result.version).toBe(17)
     expect(result.vaultChatEnabled).toBe(true)
-    expect(result.systemPrompt).toBe('test prompt')
     expect(result.agents.directoryName).toBe('.agents')
+    expect(result).not.toHaveProperty('systemPrompt')
   })
 })

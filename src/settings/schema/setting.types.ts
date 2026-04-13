@@ -74,9 +74,6 @@ export const smartComposerSettingsSchema = z.object({
     ), // model for apply feature
   embeddingModelId: z.string().catch(DEFAULT_EMBEDDING_MODELS[0].id), // model for embedding
 
-  // System Prompt
-  systemPrompt: z.string().catch(''),
-
   agents: agentOptionsSchema.catch({
     directoryName: '.agents',
   }),
