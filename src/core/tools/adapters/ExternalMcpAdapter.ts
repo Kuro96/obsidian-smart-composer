@@ -5,11 +5,13 @@
  * McpManager 仍负责 server 的连接生命周期；此适配器只负责"注册工具到 ToolRegistry"。
  */
 
-import type { McpClient, McpTool, McpToolCallResult } from '../../../types/mcp.types'
 import { McpServerStatus } from '../../../types/mcp.types'
-import type { McpServerState } from '../../../types/mcp.types'
-import { ToolCallResponseStatus } from '../../../types/tool-call.types'
-import { getToolName, parseToolName } from '../../mcp/tool-name-utils'
+import type {
+  McpClient,
+  McpServerState,
+  McpToolCallResult,
+} from '../../../types/mcp.types'
+import { getToolName } from '../../mcp/tool-name-utils'
 import type { ToolEntry, ToolRegistry } from '../ToolRegistry'
 
 /**
@@ -36,7 +38,9 @@ export function registerExternalMcpServer(
       tier: null, // external MCP tools have no builtin tier
       source: 'external-mcp',
       sourceId: serverName,
-      approvalRequired: !(config.toolOptions[tool.name]?.allowAutoExecution ?? false),
+      approvalRequired: !(
+        config.toolOptions[tool.name]?.allowAutoExecution ?? false
+      ),
       handler: makeExternalMcpHandler(client, tool.name),
     }
     registry.register(toolEntry)
@@ -59,7 +63,8 @@ function makeExternalMcpHandler(
       { signal: abortController.signal },
     )) as McpToolCallResult
 
-    if (result.content.length === 0) throw new Error('Tool call returned no content')
+    if (result.content.length === 0)
+      throw new Error('Tool call returned no content')
     if (result.content[0].type !== 'text') {
       throw new Error(
         `Tool result with content type ${result.content[0].type} is not currently supported.`,

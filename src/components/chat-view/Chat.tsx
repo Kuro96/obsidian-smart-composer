@@ -15,6 +15,7 @@ import { useApp } from '../../contexts/app-context'
 import { useMcp } from '../../contexts/mcp-context'
 import { useRAG } from '../../contexts/rag-context'
 import { useSettings } from '../../contexts/settings-context'
+import { SessionMode } from '../../core/mcp/mcpManager'
 import { useChatHistory } from '../../hooks/useChatHistory'
 import {
   AssistantToolMessageGroup,
@@ -22,7 +23,6 @@ import {
   ChatToolMessage,
   ChatUserMessage,
 } from '../../types/chat'
-import { SessionMode } from '../../core/mcp/mcpManager'
 import {
   MentionableBlock,
   MentionableBlockData,

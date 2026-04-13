@@ -327,7 +327,10 @@ function useToolCall(
   request: ToolCallRequest,
   conversationId: string,
   onResponseUpdate: (response: ToolCallResponse) => void,
-  onAllowToolForConversation: (toolName: string, conversationId: string) => void,
+  onAllowToolForConversation: (
+    toolName: string,
+    conversationId: string,
+  ) => void,
   executeToolCall: (
     request: ToolCallRequest,
     conversationId: string,
@@ -408,7 +411,10 @@ function useToolCall(
       onResponseUpdate({
         status: ToolCallResponseStatus.Running,
       })
-      const toolCallResponse = await applyReviewedToolCall(proposal, conversationId)
+      const toolCallResponse = await applyReviewedToolCall(
+        proposal,
+        conversationId,
+      )
       onResponseUpdate(toolCallResponse)
     },
     [applyReviewedToolCall, conversationId, onResponseUpdate],

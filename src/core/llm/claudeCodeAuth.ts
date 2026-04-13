@@ -5,6 +5,7 @@ import {
   CLAUDE_CODE_REDIRECT_URI,
 } from '../../constants'
 import { postFormUrlEncoded } from '../../utils/llm/httpTransport'
+
 import {
   getBrowserCompatibleFetchFn,
   shouldUseObsidianRequestUrlNetworkStack,

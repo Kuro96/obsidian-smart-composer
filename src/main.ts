@@ -233,7 +233,6 @@ ${validationResult.error.issues.map((v) => v.message).join('\n')}`)
     )
   }
 
-
   async openApplyView(state: ApplyViewState) {
     // Open in main editor area (like opening a note), not sidebar
     const leaf = this.app.workspace.getLeaf(true)

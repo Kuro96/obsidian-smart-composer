@@ -9,8 +9,8 @@
 
 import { App } from 'obsidian'
 
-import type { ToolEntry, ToolRegistry } from '../ToolRegistry'
 import { createUnifiedDiffLines } from '../../../utils/chat/diff'
+import type { ToolEntry, ToolRegistry } from '../ToolRegistry'
 import {
   ensureParentDirectory,
   getVaultAdapter,
@@ -41,7 +41,8 @@ export class VaultToolPack {
             properties: {
               path: {
                 type: 'string',
-                description: 'Vault-relative directory path to list. Default is vault root.',
+                description:
+                  'Vault-relative directory path to list. Default is vault root.',
               },
             },
             required: [],
@@ -55,7 +56,15 @@ export class VaultToolPack {
             typeof args?.path === 'string' ? args.path : '',
           )
           const listed = await adapter().list(relativePath)
-          return JSON.stringify({ path: relativePath, folders: listed.folders, files: listed.files }, null, 2)
+          return JSON.stringify(
+            {
+              path: relativePath,
+              folders: listed.folders,
+              files: listed.files,
+            },
+            null,
+            2,
+          )
         },
       },
 
@@ -67,7 +76,10 @@ export class VaultToolPack {
           inputSchema: {
             type: 'object',
             properties: {
-              path: { type: 'string', description: 'Vault-relative file path to read.' },
+              path: {
+                type: 'string',
+                description: 'Vault-relative file path to read.',
+              },
             },
             required: ['path'],
           },
@@ -92,11 +104,18 @@ export class VaultToolPack {
           inputSchema: {
             type: 'object',
             properties: {
-              path: { type: 'string', description: 'Vault-relative file path to write.' },
-              content: { type: 'string', description: 'Full UTF-8 text content to write.' },
+              path: {
+                type: 'string',
+                description: 'Vault-relative file path to write.',
+              },
+              content: {
+                type: 'string',
+                description: 'Full UTF-8 text content to write.',
+              },
               createDirectories: {
                 type: 'boolean',
-                description: 'Whether to create missing parent directories. Default true.',
+                description:
+                  'Whether to create missing parent directories. Default true.',
               },
             },
             required: ['path', 'content'],
@@ -117,7 +136,9 @@ export class VaultToolPack {
           const relativePath = normalizeVaultPath(rawPath)
           const a = adapter()
           const createDirs =
-            typeof args?.createDirectories === 'boolean' ? args.createDirectories : true
+            typeof args?.createDirectories === 'boolean'
+              ? args.createDirectories
+              : true
           if (createDirs) await ensureParentDirectory(relativePath, a)
           await a.write(relativePath, content)
           return `Wrote ${content.length} bytes to ${relativePath}`
@@ -132,12 +153,22 @@ export class VaultToolPack {
           inputSchema: {
             type: 'object',
             properties: {
-              path: { type: 'string', description: 'Vault-relative file path to edit.' },
-              oldText: { type: 'string', description: 'Exact text snippet to replace.' },
-              newText: { type: 'string', description: 'Replacement text snippet.' },
+              path: {
+                type: 'string',
+                description: 'Vault-relative file path to edit.',
+              },
+              oldText: {
+                type: 'string',
+                description: 'Exact text snippet to replace.',
+              },
+              newText: {
+                type: 'string',
+                description: 'Replacement text snippet.',
+              },
               replaceAll: {
                 type: 'boolean',
-                description: 'Replace all occurrences when true. Default false (expects exactly one match).',
+                description:
+                  'Replace all occurrences when true. Default false (expects exactly one match).',
               },
             },
             required: ['path', 'oldText', 'newText'],
@@ -161,7 +192,9 @@ export class VaultToolPack {
           const original = await adapter().read(relativePath)
           const occurrences = original.split(oldText).length - 1
           if (occurrences === 0)
-            throw new Error(`vault_edit could not find oldText in ${relativePath}`)
+            throw new Error(
+              `vault_edit could not find oldText in ${relativePath}`,
+            )
           if (!replaceAll && occurrences !== 1)
             throw new Error(
               `vault_edit found ${occurrences} matches; set replaceAll=true or provide a more specific oldText`,
@@ -170,10 +203,17 @@ export class VaultToolPack {
             ? original.split(oldText).join(newText)
             : original.replace(oldText, newText)
           await adapter().write(relativePath, next)
-          const PREFIX = { context: ' ', added: '+', removed: '-', 'hunk-header': '' } as const
+          const PREFIX = {
+            context: ' ',
+            added: '+',
+            removed: '-',
+            'hunk-header': '',
+          } as const
           const diffSummary = createUnifiedDiffLines(original, next)
             .map((l) =>
-              l.type === 'hunk-header' ? l.content : `${PREFIX[l.type]}${l.content}`,
+              l.type === 'hunk-header'
+                ? l.content
+                : `${PREFIX[l.type]}${l.content}`,
             )
             .join('\n')
 
@@ -189,11 +229,15 @@ export class VaultToolPack {
       {
         tool: {
           name: 'vault_mkdir',
-          description: 'Create a vault-relative directory path recursively if it does not exist.',
+          description:
+            'Create a vault-relative directory path recursively if it does not exist.',
           inputSchema: {
             type: 'object',
             properties: {
-              path: { type: 'string', description: 'Vault-relative directory path to create.' },
+              path: {
+                type: 'string',
+                description: 'Vault-relative directory path to create.',
+              },
             },
             required: ['path'],
           },
@@ -230,7 +274,10 @@ export class VaultToolPack {
           inputSchema: {
             type: 'object',
             properties: {
-              path: { type: 'string', description: 'Vault-relative file path.' },
+              path: {
+                type: 'string',
+                description: 'Vault-relative file path.',
+              },
               content: { type: 'string', description: 'Text to append.' },
               createDirectories: {
                 type: 'boolean',
@@ -258,7 +305,9 @@ export class VaultToolPack {
           const relativePath = normalizeVaultPath(rawPath)
           const a = adapter()
           const createDirs =
-            typeof args?.createDirectories === 'boolean' ? args.createDirectories : true
+            typeof args?.createDirectories === 'boolean'
+              ? args.createDirectories
+              : true
           const ensureNL = args?.ensureTrailingNewline === true
           if (createDirs) await ensureParentDirectory(relativePath, a)
           const exists = a.exists ? await a.exists(relativePath) : false
@@ -282,7 +331,10 @@ export class VaultToolPack {
           inputSchema: {
             type: 'object',
             properties: {
-              path: { type: 'string', description: 'Vault-relative file or folder path to delete.' },
+              path: {
+                type: 'string',
+                description: 'Vault-relative file or folder path to delete.',
+              },
             },
             required: ['path'],
           },
@@ -296,7 +348,8 @@ export class VaultToolPack {
             throw new Error('vault_delete requires a non-empty "path"')
           const relativePath = normalizeVaultPath(rawPath)
           const target = app.vault.getAbstractFileByPath(relativePath)
-          if (!target) throw new Error(`vault_delete: path not found: ${relativePath}`)
+          if (!target)
+            throw new Error(`vault_delete: path not found: ${relativePath}`)
           await app.vault.trash(target, true)
           return `Moved to trash: ${relativePath}`
         },

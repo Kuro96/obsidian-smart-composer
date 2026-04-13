@@ -29,9 +29,7 @@ export const BUILTIN_READ_WRITE_TOOLS: string[] = [
   'vault_move',
 ]
 
-export const BUILTIN_DANGER_ZONE_TOOLS: string[] = [
-  'vault_delete',
-]
+export const BUILTIN_DANGER_ZONE_TOOLS: string[] = ['vault_delete']
 
 export function getBuiltinToolTier(name: string): BuiltinToolTier | null {
   if (BUILTIN_READ_ONLY_TOOLS.includes(name)) return 'read-only'

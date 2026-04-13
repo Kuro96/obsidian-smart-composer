@@ -9,6 +9,7 @@ import {
   GEMINI_OAUTH_SCOPES,
 } from '../../constants'
 import { postFormUrlEncoded } from '../../utils/llm/httpTransport'
+
 import {
   getBrowserCompatibleFetchFn,
   shouldUseObsidianRequestUrlNetworkStack,

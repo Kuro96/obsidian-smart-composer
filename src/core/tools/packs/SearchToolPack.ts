@@ -15,11 +15,16 @@ function makeSearchTextHandler(app: App): ToolEntry['handler'] {
     const query = args?.query
     if (typeof query !== 'string' || query.trim().length === 0)
       throw new Error('search requires a non-empty "query"')
-    const contextLength = typeof args?.contextLength === 'number' ? args.contextLength : 100
+    const contextLength =
+      typeof args?.contextLength === 'number' ? args.contextLength : 100
     const limit = typeof args?.limit === 'number' ? args.limit : 20
     const queryLower = query.toLowerCase()
     const allFiles = app.vault.getMarkdownFiles()
-    const results: Array<{ path: string; matchType: 'filename' | 'content'; context?: string }> = []
+    const results: {
+      path: string
+      matchType: 'filename' | 'content'
+      context?: string
+    }[] = []
 
     for (const file of allFiles) {
       if (results.length >= limit) break
@@ -31,8 +36,15 @@ function makeSearchTextHandler(app: App): ToolEntry['handler'] {
       const idx = content.toLowerCase().indexOf(queryLower)
       if (idx !== -1) {
         const start = Math.max(0, idx - Math.floor(contextLength / 2))
-        const end = Math.min(content.length, idx + query.length + Math.floor(contextLength / 2))
-        results.push({ path: file.path, matchType: 'content', context: content.slice(start, end) })
+        const end = Math.min(
+          content.length,
+          idx + query.length + Math.floor(contextLength / 2),
+        )
+        results.push({
+          path: file.path,
+          matchType: 'content',
+          context: content.slice(start, end),
+        })
       }
     }
     return JSON.stringify(results, null, 2)
@@ -61,7 +73,8 @@ export class SearchToolPack {
             properties: {
               includeCounts: {
                 type: 'boolean',
-                description: 'When true, include the usage count for each tag. Default false.',
+                description:
+                  'When true, include the usage count for each tag. Default false.',
               },
             },
             required: [],
@@ -90,10 +103,14 @@ export class SearchToolPack {
           inputSchema: {
             type: 'object',
             properties: {
-              query: { type: 'string', description: 'Text to search for (case-insensitive).' },
+              query: {
+                type: 'string',
+                description: 'Text to search for (case-insensitive).',
+              },
               contextLength: {
                 type: 'number',
-                description: 'Characters of surrounding context to include for content matches. Default 100.',
+                description:
+                  'Characters of surrounding context to include for content matches. Default 100.',
               },
               limit: {
                 type: 'number',
@@ -117,7 +134,10 @@ export class SearchToolPack {
           inputSchema: {
             type: 'object',
             properties: {
-              query: { type: 'string', description: 'Dataview DQL query string.' },
+              query: {
+                type: 'string',
+                description: 'Dataview DQL query string.',
+              },
             },
             required: ['query'],
           },
@@ -130,16 +150,26 @@ export class SearchToolPack {
           if (typeof query !== 'string' || query.trim().length === 0)
             throw new Error('search_dataview requires a non-empty "query"')
           const dvPlugin = (
-            app as App & { plugins?: { plugins?: Record<string, { api?: unknown }> } }
-          ).plugins?.plugins?.['dataview']
+            app as App & {
+              plugins?: { plugins?: Record<string, { api?: unknown }> }
+            }
+          ).plugins?.plugins?.dataview
           if (!dvPlugin?.api)
-            throw new Error('search_dataview: Dataview plugin is not installed or enabled')
+            throw new Error(
+              'search_dataview: Dataview plugin is not installed or enabled',
+            )
           const dv = dvPlugin.api as {
-            query: (q: string) => Promise<{ successful: boolean; value: unknown; error?: string }>
+            query: (q: string) => Promise<{
+              successful: boolean
+              value: unknown
+              error?: string
+            }>
           }
           const result = await dv.query(query)
           if (!result.successful)
-            throw new Error(`search_dataview: query failed: ${result.error ?? 'unknown error'}`)
+            throw new Error(
+              `search_dataview: query failed: ${result.error ?? 'unknown error'}`,
+            )
           return JSON.stringify(result.value, null, 2)
         },
       },

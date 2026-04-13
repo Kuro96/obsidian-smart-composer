@@ -8,9 +8,9 @@ import {
   useState,
 } from 'react'
 
-import { DiffBlock, createDiffBlocks } from '../../utils/chat/diff'
-import { ProposedToolReview } from '../../types/tool-call.types'
 import SmartComposerPlugin from '../../main'
+import { ProposedToolReview } from '../../types/tool-call.types'
+import { DiffBlock, createDiffBlocks } from '../../utils/chat/diff'
 
 export default function ApplyViewRoot({
   proposal,
@@ -47,11 +47,13 @@ export default function ApplyViewRoot({
 
   const autoAcceptEnabled = useMemo(() => {
     const toolName = proposal.toolName
-    const toolOptions = (plugin.settings.mcp as {
-      builtin?: {
-        toolOptions?: Record<string, { autoAcceptReview?: boolean }>
+    const toolOptions = (
+      plugin.settings.mcp as {
+        builtin?: {
+          toolOptions?: Record<string, { autoAcceptReview?: boolean }>
+        }
       }
-    }).builtin?.toolOptions?.[toolName]
+    ).builtin?.toolOptions?.[toolName]
     return toolOptions?.autoAcceptReview === true
   }, [plugin.settings, proposal.toolName])
 
@@ -219,9 +221,7 @@ export default function ApplyViewRoot({
     <div id="smtcmp-apply-view">
       <div className="view-header">
         <div className="view-header-title-container mod-at-start">
-          <div className="view-header-title">
-            Review: {proposal.targetPath}
-          </div>
+          <div className="view-header-title">Review: {proposal.targetPath}</div>
           <div className="view-actions">
             <label className="smtcmp-auto-accept-toggle">
               <input

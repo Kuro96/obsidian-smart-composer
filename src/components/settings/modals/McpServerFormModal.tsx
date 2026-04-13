@@ -231,9 +231,7 @@ function McpServerFormComponent({
         desc="Save only commits this draft. Review the launch summary first so you can catch JSON mistakes before they affect the live MCP server list."
         className="smtcmp-settings-textarea-header"
       />
-      <div className="smtcmp-mcp-server-modal-validation">
-        {draftSummary}
-      </div>
+      <div className="smtcmp-mcp-server-modal-validation">{draftSummary}</div>
 
       <ObsidianSetting>
         <ObsidianButton

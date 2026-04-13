@@ -202,7 +202,6 @@ export function createUnifiedDiffLines(
   for (const range of ranges) {
     // Compute hunk header line numbers
     const firstEntry = rawEntries[range.start]
-    const lastEntry = rawEntries[range.end]
 
     const oldStart = firstEntry.oldLineNo ?? firstEntry.newLineNo ?? 1
     const newStart = firstEntry.newLineNo ?? firstEntry.oldLineNo ?? 1

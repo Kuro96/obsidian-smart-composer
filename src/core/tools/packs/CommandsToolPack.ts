@@ -29,14 +29,16 @@ export class CommandsToolPack {
       {
         tool: {
           name: 'commands_list',
-          description: 'List all available Obsidian commands with their IDs and names.',
+          description:
+            'List all available Obsidian commands with their IDs and names.',
           inputSchema: { type: 'object', properties: {}, required: [] },
         },
         tier: 'read-only',
         source: 'builtin',
         approvalRequired: false,
         handler: async () => {
-          const commandsMap = (app as App & { commands: ObsidianCommands }).commands.commands
+          const commandsMap = (app as App & { commands: ObsidianCommands })
+            .commands.commands
           const commands = Object.values(commandsMap).map((cmd) => ({
             id: cmd.id,
             name: cmd.name,
@@ -53,7 +55,10 @@ export class CommandsToolPack {
           inputSchema: {
             type: 'object',
             properties: {
-              commandId: { type: 'string', description: 'The Obsidian command ID to execute.' },
+              commandId: {
+                type: 'string',
+                description: 'The Obsidian command ID to execute.',
+              },
             },
             required: ['commandId'],
           },
@@ -65,12 +70,15 @@ export class CommandsToolPack {
           const commandId = args?.commandId
           if (typeof commandId !== 'string' || commandId.trim().length === 0)
             throw new Error('command_execute requires a non-empty "commandId"')
-          const commandsObj = (app as App & { commands: ObsidianCommands }).commands
+          const commandsObj = (app as App & { commands: ObsidianCommands })
+            .commands
           if (!commandsObj.commands[commandId])
             throw new Error(`command_execute: command not found: ${commandId}`)
           const executed = commandsObj.executeCommandById(commandId)
           if (!executed)
-            throw new Error(`command_execute: command could not be executed: ${commandId}`)
+            throw new Error(
+              `command_execute: command could not be executed: ${commandId}`,
+            )
           return `Executed command: ${commandId}`
         },
       },

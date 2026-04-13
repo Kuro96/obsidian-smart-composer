@@ -16,7 +16,9 @@ export class ApprovalPolicyImpl implements ApprovalPolicy {
   private readonly conversationApprovals = new Map<string, Set<string>>()
 
   isAllowedForConversation(toolName: string, conversationId: string): boolean {
-    return this.conversationApprovals.get(conversationId)?.has(toolName) ?? false
+    return (
+      this.conversationApprovals.get(conversationId)?.has(toolName) ?? false
+    )
   }
 
   /**

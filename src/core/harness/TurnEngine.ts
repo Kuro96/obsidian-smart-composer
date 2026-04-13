@@ -10,9 +10,6 @@
 
 import { v4 as uuidv4 } from 'uuid'
 
-import { BaseLLMProvider } from '../llm/base'
-import { SessionMode } from '../mcp/mcpManager'
-import type { ToolRegistry } from '../tools/ToolRegistry'
 import { ChatMessage } from '../../types/chat'
 import { ChatModel } from '../../types/chat-model.types'
 import { RequestTool } from '../../types/llm/request'
@@ -25,6 +22,9 @@ import { LLMProvider } from '../../types/provider.types'
 import { ToolCallRequest } from '../../types/tool-call.types'
 import { fetchAnnotationTitles } from '../../utils/chat/fetch-annotation-titles'
 import { PromptGenerator } from '../../utils/chat/promptGenerator'
+import { BaseLLMProvider } from '../llm/base'
+import { SessionMode } from '../mcp/mcpManager'
+import type { ToolRegistry } from '../tools/ToolRegistry'
 
 export type TurnEngineParams = {
   providerClient: BaseLLMProvider<LLMProvider>
@@ -145,7 +145,8 @@ export class TurnEngine {
         !didNotifyToolCalls &&
         (finishReason === 'tool_calls' || finishReason === 'function_call')
       ) {
-        const toolCallRequests = this.extractToolCallRequests(accumulatedToolCalls)
+        const toolCallRequests =
+          this.extractToolCallRequests(accumulatedToolCalls)
         if (toolCallRequests.length > 0) {
           didNotifyToolCalls = true
           onMessagesUpdate((prev) =>
@@ -224,7 +225,13 @@ export class TurnEngine {
                   ...msg,
                   annotations: msg.annotations?.map((a) =>
                     a.type === 'url_citation' && a.url_citation.url === url
-                      ? { ...a, url_citation: { ...a.url_citation, title: title ?? undefined } }
+                      ? {
+                          ...a,
+                          url_citation: {
+                            ...a.url_citation,
+                            title: title ?? undefined,
+                          },
+                        }
                       : a,
                   ),
                 }
@@ -264,7 +271,10 @@ export class TurnEngine {
     const merged = { ...existing }
     for (const tc of incoming) {
       const { index } = tc
-      if (!merged[index]) { merged[index] = tc; continue }
+      if (!merged[index]) {
+        merged[index] = tc
+        continue
+      }
       const prev = merged[index]
       const mergedTc: ToolCallDelta = {
         index,
@@ -288,12 +298,16 @@ export class TurnEngine {
   }
 }
 
-function mergeAnnotations(prev?: Annotation[], next?: Annotation[]): Annotation[] | undefined {
+function mergeAnnotations(
+  prev?: Annotation[],
+  next?: Annotation[],
+): Annotation[] | undefined {
   if (!prev) return next
   if (!next) return prev
   const merged = [...prev]
   for (const a of next) {
-    if (!merged.find((x) => x.url_citation.url === a.url_citation.url)) merged.push(a)
+    if (!merged.find((x) => x.url_citation.url === a.url_citation.url))
+      merged.push(a)
   }
   return merged
 }

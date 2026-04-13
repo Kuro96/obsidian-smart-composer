@@ -12,6 +12,7 @@
 import { App } from 'obsidian'
 
 import { McpManager } from '../mcp/mcpManager'
+
 import { registerExternalMcpServer } from './adapters/ExternalMcpAdapter'
 import { SkillToolAdapter } from './adapters/SkillToolAdapter'
 import { CommandsToolPack } from './packs/CommandsToolPack'

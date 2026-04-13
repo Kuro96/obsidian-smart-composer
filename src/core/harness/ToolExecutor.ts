@@ -9,6 +9,12 @@
 
 import { App, TFile, TFolder, parseYaml, stringifyYaml } from 'obsidian'
 
+import { SmartComposerSettings } from '../../settings/schema/setting.types'
+import {
+  ProposedToolReview,
+  ToolCallResponse,
+  ToolCallResponseStatus,
+} from '../../types/tool-call.types'
 import { McpManager } from '../mcp/mcpManager'
 import type { ToolPermissionPolicy } from '../policy/types'
 import type { ToolRegistry } from '../tools/ToolRegistry'
@@ -17,12 +23,6 @@ import {
   getVaultAdapter,
   normalizeVaultPath,
 } from '../tools/vaultUtils'
-import {
-  ProposedToolReview,
-  ToolCallResponse,
-  ToolCallResponseStatus,
-} from '../../types/tool-call.types'
-import { SmartComposerSettings } from '../../settings/schema/setting.types'
 
 const STAGED_REVIEW_TOOLS = new Set([
   'vault_write',
@@ -47,7 +47,10 @@ export class ToolExecutor {
     // Staged review tools skip PendingApproval — the ApplyView diff UI
     // serves as the approval mechanism.
     if (this.shouldStageReview(toolName)) return true
-    return this.permissionPolicy.getApprovalDecision(toolName, conversationId) === 'allow'
+    return (
+      this.permissionPolicy.getApprovalDecision(toolName, conversationId) ===
+      'allow'
+    )
   }
 
   shouldStageReview(toolName: string): boolean {
@@ -57,11 +60,13 @@ export class ToolExecutor {
   private isAutoAcceptReview(toolName: string): boolean {
     if (!this.getSettings) return false
     const settings = this.getSettings()
-    const option = (settings.mcp as {
-      builtin?: {
-        toolOptions?: Record<string, { autoAcceptReview?: boolean }>
+    const option = (
+      settings.mcp as {
+        builtin?: {
+          toolOptions?: Record<string, { autoAcceptReview?: boolean }>
+        }
       }
-    }).builtin?.toolOptions?.[toolName]
+    ).builtin?.toolOptions?.[toolName]
     return option?.autoAcceptReview === true
   }
 
@@ -80,7 +85,10 @@ export class ToolExecutor {
           ? {}
           : (() => {
               try {
-                return JSON.parse(args)
+                const parsed: unknown = JSON.parse(args)
+                return parsed && typeof parsed === 'object'
+                  ? (parsed as Record<string, unknown>)
+                  : {}
               } catch {
                 return {}
               }
@@ -94,7 +102,10 @@ export class ToolExecutor {
           const proposal = await this.buildReviewProposal(name, parsedArgs)
 
           if (this.isAutoAcceptReview(name)) {
-            const response = await this.applyReview({ proposal, conversationId })
+            const response = await this.applyReview({
+              proposal,
+              conversationId,
+            })
             if (response.status === ToolCallResponseStatus.Success) {
               return {
                 status: ToolCallResponseStatus.Success,
@@ -161,7 +172,8 @@ export class ToolExecutor {
             throw new Error(`Missing reviewed content for ${proposal.toolName}`)
           }
           const adapter = getVaultAdapter(this.app)
-          const createDirectories = proposal.metadata?.createDirectories === true
+          const createDirectories =
+            proposal.metadata?.createDirectories === true
           if (createDirectories) {
             await ensureParentDirectory(proposal.targetPath, adapter)
           }
@@ -176,20 +188,31 @@ export class ToolExecutor {
           if (typeof rawNewPath !== 'string') {
             throw new Error('Missing destination path for reviewed move')
           }
-          const target = this.app.vault.getAbstractFileByPath(proposal.targetPath)
+          const target = this.app.vault.getAbstractFileByPath(
+            proposal.targetPath,
+          )
           if (!target) {
-            throw new Error(`vault_move: path not found: ${proposal.targetPath}`)
+            throw new Error(
+              `vault_move: path not found: ${proposal.targetPath}`,
+            )
           }
-          await this.app.fileManager.renameFile(target, normalizeVaultPath(rawNewPath))
+          await this.app.fileManager.renameFile(
+            target,
+            normalizeVaultPath(rawNewPath),
+          )
           return {
             status: ToolCallResponseStatus.Success,
             data: { type: 'text', text: proposal.summary },
           }
         }
         case 'delete': {
-          const target = this.app.vault.getAbstractFileByPath(proposal.targetPath)
+          const target = this.app.vault.getAbstractFileByPath(
+            proposal.targetPath,
+          )
           if (!target) {
-            throw new Error(`vault_delete: path not found: ${proposal.targetPath}`)
+            throw new Error(
+              `vault_delete: path not found: ${proposal.targetPath}`,
+            )
           }
           await this.app.vault.trash(target, true)
           return {
@@ -257,12 +280,12 @@ export class ToolExecutor {
       kind: 'write',
       beforeText,
       afterText: content,
-      summary: exists
-        ? `Overwrite ${targetPath}`
-        : `Create ${targetPath}`,
+      summary: exists ? `Overwrite ${targetPath}` : `Create ${targetPath}`,
       metadata: {
         createDirectories:
-          typeof args.createDirectories === 'boolean' ? args.createDirectories : true,
+          typeof args.createDirectories === 'boolean'
+            ? args.createDirectories
+            : true,
       },
     }
   }
@@ -342,7 +365,9 @@ export class ToolExecutor {
         : `Create and append to ${targetPath}`,
       metadata: {
         createDirectories:
-          typeof args.createDirectories === 'boolean' ? args.createDirectories : true,
+          typeof args.createDirectories === 'boolean'
+            ? args.createDirectories
+            : true,
       },
     }
   }
@@ -356,7 +381,8 @@ export class ToolExecutor {
 
     const targetPath = normalizeVaultPath(rawPath)
     const file = this.app.vault.getFileByPath(targetPath)
-    if (!file) throw new Error(`note_frontmatter_set: file not found: ${targetPath}`)
+    if (!file)
+      throw new Error(`note_frontmatter_set: file not found: ${targetPath}`)
 
     const beforeText = await this.app.vault.read(file)
     const updates = args.updates as Record<string, unknown> | undefined
@@ -373,9 +399,16 @@ export class ToolExecutor {
       afterText: this.updateFrontmatterText(beforeText, (frontmatter) => {
         if (updates) {
           for (const [key, value] of Object.entries(updates)) {
-            if (mergeArrays && Array.isArray(frontmatter[key]) && Array.isArray(value)) {
+            if (
+              mergeArrays &&
+              Array.isArray(frontmatter[key]) &&
+              Array.isArray(value)
+            ) {
               frontmatter[key] = [
-                ...new Set([...(frontmatter[key] as unknown[]), ...(value as unknown[])]),
+                ...new Set([
+                  ...(frontmatter[key] as unknown[]),
+                  ...(value as unknown[]),
+                ]),
               ]
             } else {
               frontmatter[key] = value
@@ -398,11 +431,14 @@ export class ToolExecutor {
     if (typeof rawPath !== 'string' || rawPath.trim().length === 0)
       throw new Error('note_frontmatter_delete requires a non-empty "path"')
     if (keys.length === 0)
-      throw new Error('note_frontmatter_delete requires a non-empty "keys" array')
+      throw new Error(
+        'note_frontmatter_delete requires a non-empty "keys" array',
+      )
 
     const targetPath = normalizeVaultPath(rawPath)
     const file = this.app.vault.getFileByPath(targetPath)
-    if (!file) throw new Error(`note_frontmatter_delete: file not found: ${targetPath}`)
+    if (!file)
+      throw new Error(`note_frontmatter_delete: file not found: ${targetPath}`)
 
     const beforeText = await this.app.vault.read(file)
     return {
@@ -476,9 +512,10 @@ export class ToolExecutor {
     const match = markdown.match(/^---\n([\s\S]*?)\n---\n?/)
     const rawFrontmatter = match?.[1] ?? ''
     const body = match ? markdown.slice(match[0].length) : markdown
-    const parsed = rawFrontmatter.trim().length > 0
-      ? ((parseYaml(rawFrontmatter) as Record<string, unknown> | null) ?? {})
-      : {}
+    const parsed =
+      rawFrontmatter.trim().length > 0
+        ? ((parseYaml(rawFrontmatter) as Record<string, unknown> | null) ?? {})
+        : {}
 
     mutator(parsed)
 
@@ -494,5 +531,4 @@ export class ToolExecutor {
 
     return `---\n${serialized}\n---\n${body.replace(/^\n+/, '')}`
   }
-
 }

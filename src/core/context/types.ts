@@ -18,7 +18,7 @@ import type { SessionMode } from '../mcp/mcpManager'
 
 // ─── Context Build Options ───────────────────────────────────────────────────
 
-export interface ContextBuildOptions {
+export type ContextBuildOptions = {
   /** 当前完整对话历史 */
   messages: ChatMessage[]
 
@@ -34,7 +34,7 @@ export interface ContextBuildOptions {
 
 // ─── Built Context ───────────────────────────────────────────────────────────
 
-export interface BuiltContext {
+export type BuiltContext = {
   /** 系统消息（包含 system prompt、custom instructions、skill section 等） */
   systemMessage: RequestMessage
 
@@ -50,7 +50,7 @@ export interface BuiltContext {
  * 每个来源负责生产自己的上下文片段（字符串），ContextBuilder 负责组合。
  * 来源包括：VaultContextSource、RagContextSource、SkillContextSource 等。
  */
-export interface ContextSource {
+export type ContextSource = {
   /** 来源唯一标识，用于调试和排序 */
   readonly id: string
 
@@ -72,7 +72,7 @@ export interface ContextSource {
  * 3. 格式化消息历史为 RequestMessage[]
  * 4. 输出 BuiltContext 供 TurnEngine 使用
  */
-export interface ContextBuilder {
+export type ContextBuilder = {
   /**
    * 注册一个上下文来源。
    * 同 id 的来源会覆盖。

@@ -4,13 +4,10 @@
  * 基于 Map 的简单注册中心。Phase 3 开始被 ConversationHarness 创建并使用。
  */
 
-import { getBuiltinToolTier } from '../mcp/builtin-tool-tiers'
 import type { McpTool } from '../../types/mcp.types'
-import type {
-  ToolEntry,
-  ToolListFilter,
-  ToolRegistry,
-} from './ToolRegistry'
+import { getBuiltinToolTier } from '../mcp/builtin-tool-tiers'
+
+import type { ToolEntry, ToolListFilter, ToolRegistry } from './ToolRegistry'
 
 export class ToolRegistryImpl implements ToolRegistry {
   private readonly entries: Map<string, ToolEntry> = new Map()

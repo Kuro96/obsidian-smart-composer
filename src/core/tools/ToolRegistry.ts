@@ -20,7 +20,7 @@ export type ToolSource = 'builtin' | 'external-mcp' | 'skill'
 // ─── Tool Execution Context ──────────────────────────────────────────────────
 
 /** 工具执行时的上下文，传入 handler */
-export interface ToolExecutionContext {
+export type ToolExecutionContext = {
   conversationId: string
   signal?: AbortSignal
 }
@@ -36,7 +36,7 @@ export interface ToolExecutionContext {
  * - `handler`：实际执行函数，返回文本结果
  * - `approvalRequired`：是否需要用户批准后才能执行（由 policy 层决定最终行为）
  */
-export interface ToolEntry {
+export type ToolEntry = {
   tool: McpTool
   tier: BuiltinToolTier | null
   source: ToolSource
@@ -50,7 +50,7 @@ export interface ToolEntry {
 
 // ─── ToolRegistry Interface ──────────────────────────────────────────────────
 
-export interface ToolListFilter {
+export type ToolListFilter = {
   /** 按 session 模式过滤可见工具（read-only 模式下隐藏 read-write / danger-zone） */
   mode?: SessionMode
   /** 是否排除已禁用的工具 */
@@ -65,7 +65,7 @@ export interface ToolListFilter {
  * 2. list：供 TurnEngine 构建发给 LLM 的工具列表
  * 3. resolve：供 ToolExecutor 查找工具 entry 并执行
  */
-export interface ToolRegistry {
+export type ToolRegistry = {
   /** 注册一个工具。同名工具会覆盖。 */
   register(entry: ToolEntry): void
 

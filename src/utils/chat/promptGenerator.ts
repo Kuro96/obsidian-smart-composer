@@ -1,4 +1,4 @@
-import { App, TFile, htmlToMarkdown, requestUrl } from 'obsidian'
+import { App, htmlToMarkdown, requestUrl } from 'obsidian'
 
 import { editorStateToPlainText } from '../../components/chat-view/chat-input/utils/editor-state-to-plain-text'
 import { QueryProgressState } from '../../components/chat-view/QueryProgress'

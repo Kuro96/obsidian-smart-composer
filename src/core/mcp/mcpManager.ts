@@ -1,6 +1,7 @@
+import * as path from 'path'
+
 import isEqual from 'lodash.isequal'
 import { App, Platform, TFile } from 'obsidian'
-import * as path from 'path'
 
 import { SmartComposerSettings } from '../../settings/schema/setting.types'
 import {
@@ -14,20 +15,6 @@ import {
   ToolCallResponse,
   ToolCallResponseStatus,
 } from '../../types/tool-call.types'
-
-import { InvalidToolNameException, McpNotAvailableException } from './exception'
-import {
-  getToolName,
-  parseToolName,
-  validateServerName,
-} from './tool-name-utils'
-import {
-  BUILTIN_DANGER_ZONE_TOOLS,
-  BUILTIN_READ_ONLY_TOOLS,
-  BUILTIN_READ_WRITE_TOOLS,
-  BuiltinToolTier,
-  getBuiltinToolTier,
-} from './builtin-tool-tiers'
 import { SkillManager } from '../skill/skillManager'
 import { CommandsToolPack } from '../tools/packs/CommandsToolPack'
 import { MetadataToolPack } from '../tools/packs/MetadataToolPack'
@@ -35,6 +22,20 @@ import { SearchToolPack } from '../tools/packs/SearchToolPack'
 import { VaultToolPack } from '../tools/packs/VaultToolPack'
 import { WorkspaceToolPack } from '../tools/packs/WorkspaceToolPack'
 import { ToolRegistryImpl } from '../tools/ToolRegistryImpl'
+
+import {
+  BUILTIN_DANGER_ZONE_TOOLS,
+  BUILTIN_READ_ONLY_TOOLS,
+  BUILTIN_READ_WRITE_TOOLS,
+  BuiltinToolTier,
+  getBuiltinToolTier,
+} from './builtin-tool-tiers'
+import { McpNotAvailableException } from './exception'
+import {
+  getToolName,
+  parseToolName,
+  validateServerName,
+} from './tool-name-utils'
 
 export type SessionMode = 'read-only' | 'read-write'
 export type { BuiltinToolTier }
@@ -817,7 +818,7 @@ export class McpManager {
         this.app as App & {
           plugins?: { plugins?: Record<string, { api?: unknown }> }
         }
-      ).plugins?.plugins?.['dataview']
+      ).plugins?.plugins?.dataview
       if (!dvPlugin?.api) {
         throw new Error(
           'search_dataview: Dataview plugin is not installed or enabled',
@@ -898,5 +899,4 @@ export class McpManager {
       }
     }
   }
-
 }

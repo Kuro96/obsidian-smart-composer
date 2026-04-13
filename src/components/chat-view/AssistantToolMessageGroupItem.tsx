@@ -1,7 +1,4 @@
-import {
-  AssistantToolMessageGroup,
-  ChatToolMessage,
-} from '../../types/chat'
+import { AssistantToolMessageGroup, ChatToolMessage } from '../../types/chat'
 import {
   ProposedToolReview,
   ToolCallRequest,

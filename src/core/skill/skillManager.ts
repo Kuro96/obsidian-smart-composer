@@ -1,11 +1,11 @@
 import * as os from 'os'
 import * as path from 'path'
 
+import { SmartComposerSettings } from '../../settings/schema/setting.types'
 import {
   getVaultSkillsAbsolutePath,
   getVaultSkillsRelativePath,
 } from '../agents/agentPaths'
-import { SmartComposerSettings } from '../../settings/schema/setting.types'
 
 type SkillInfo = {
   name: string
@@ -554,7 +554,11 @@ export class SkillManager {
 
     const dirs = await Promise.all(
       list.map(async (item) => {
-        const root = path.join(cache, item.name ?? 'unknown')
+        const skillName = item.name
+        if (!skillName) {
+          return null
+        }
+        const root = path.join(cache, skillName)
         await Promise.all(
           (item.files ?? []).map(async (file) => {
             const next = path.join(root, file)
@@ -569,7 +573,7 @@ export class SkillManager {
               return
             }
             const body = await fetch(
-              new URL(file, `${host}/${item.name}/`).href,
+              new URL(file, `${host}/${skillName}/`).href,
             )
               .then(async (res) => {
                 if (!res.ok) {

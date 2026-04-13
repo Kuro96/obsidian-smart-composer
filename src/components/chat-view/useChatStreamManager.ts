@@ -5,6 +5,8 @@ import { useCallback, useMemo, useRef } from 'react'
 import { useApp } from '../../contexts/app-context'
 import { useMcp } from '../../contexts/mcp-context'
 import { useSettings } from '../../contexts/settings-context'
+import { ConversationHarness } from '../../core/harness/ConversationHarness'
+import { ToolExecutor } from '../../core/harness/ToolExecutor'
 import {
   LLMAPIKeyInvalidException,
   LLMAPIKeyNotSetException,
@@ -12,13 +14,11 @@ import {
   LLMModelNotFoundException,
 } from '../../core/llm/exception'
 import { getChatModelClient } from '../../core/llm/manager'
-import { ConversationHarness } from '../../core/harness/ConversationHarness'
-import { ToolExecutor } from '../../core/harness/ToolExecutor'
+import { SessionMode } from '../../core/mcp/mcpManager'
 import { ApprovalPolicyImpl } from '../../core/policy/ApprovalPolicyImpl'
 import { ToolPermissionPolicyImpl } from '../../core/policy/ToolPermissionPolicyImpl'
 import { buildToolRegistry } from '../../core/tools/buildToolRegistry'
 import { ChatMessage } from '../../types/chat'
-import { SessionMode } from '../../core/mcp/mcpManager'
 import {
   ProposedToolReview,
   ToolCallRequest,
@@ -205,7 +205,10 @@ export function useChatStreamManager({
 
   const allowToolForConversation = useCallback(
     (toolName: string, conversationId: string) => {
-      approvalPolicyRef.current.setConversationApproval(toolName, conversationId)
+      approvalPolicyRef.current.setConversationApproval(
+        toolName,
+        conversationId,
+      )
     },
     [],
   )

@@ -20,6 +20,7 @@ import {
   getBuiltinToolTier,
 } from '../../../core/mcp/builtin-tool-tiers'
 import { McpManager } from '../../../core/mcp/mcpManager'
+import { ApprovalDecision } from '../../../core/policy/types'
 import SmartComposerPlugin from '../../../main'
 import {
   McpServerState,
@@ -33,7 +34,6 @@ import {
   AddMcpServerModal,
   EditMcpServerModal,
 } from '../modals/McpServerFormModal'
-import { ApprovalDecision } from '../../../core/policy/types'
 
 type McpSectionProps = {
   app: App
@@ -112,7 +112,8 @@ export function McpSection({ app, plugin }: McpSectionProps) {
                   User-installed MCP Servers
                 </div>
                 <div className="smtcmp-settings-desc smtcmp-mcp-panel-desc">
-                  Saved server configuration. Add, edit, enable, and tune external tool permissions here.
+                  Saved server configuration. Add, edit, enable, and tune
+                  external tool permissions here.
                 </div>
               </div>
               <div className="smtcmp-mcp-panel-header-action">
@@ -160,7 +161,8 @@ export function McpSection({ app, plugin }: McpSectionProps) {
                   Built-in Vault Tools
                 </div>
                 <div className="smtcmp-settings-desc smtcmp-mcp-panel-desc">
-                  Built-in tools bundled with Smart Composer. These are runtime capabilities, not per-server installs.
+                  Built-in tools bundled with Smart Composer. These are runtime
+                  capabilities, not per-server installs.
                 </div>
               </div>
             </div>
@@ -427,16 +429,13 @@ function McpConnectedToolRow({
 }) {
   const { settings, setSettings } = useSettings()
 
-  const isEnabled = !(
-    server.config.toolOptions[tool.name]?.disabled ?? false
-  )
+  const isEnabled = !(server.config.toolOptions[tool.name]?.disabled ?? false)
 
   const handleToggleEnabled = (enabled: boolean) => {
     const toolOptions = { ...server.config.toolOptions }
     toolOptions[tool.name] = {
       disabled: !enabled,
-      allowAutoExecution:
-        toolOptions[tool.name]?.allowAutoExecution ?? false,
+      allowAutoExecution: toolOptions[tool.name]?.allowAutoExecution ?? false,
     }
     setSettings({
       ...settings,
@@ -473,7 +472,10 @@ function McpBuiltInWorkbench({ tools }: { tools: McpTool[] }) {
   const builtinPolicy = settings.mcp.builtin?.policy
   const builtinToolOptions = settings.mcp.builtin?.toolOptions ?? {}
 
-  const setBuiltinPolicy = (key: 'readOnlyDefault' | 'readWriteDefault' | 'dangerousDefault', value: ApprovalDecision) => {
+  const setBuiltinPolicy = (
+    key: 'readOnlyDefault' | 'readWriteDefault' | 'dangerousDefault',
+    value: ApprovalDecision,
+  ) => {
     void setSettings({
       ...settings,
       mcp: {

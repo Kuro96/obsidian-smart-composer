@@ -7,6 +7,7 @@
  */
 
 import type { SessionMode } from '../mcp/mcpManager'
+
 import type { SessionModePolicy } from './types'
 
 export class SessionModePolicyImpl implements SessionModePolicy {

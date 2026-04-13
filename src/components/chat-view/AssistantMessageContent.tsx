@@ -16,11 +16,7 @@ export default function AssistantMessageContent({
 }: {
   content: ChatAssistantMessage['content']
 }) {
-  return (
-    <AssistantTextRenderer>
-      {content}
-    </AssistantTextRenderer>
-  )
+  return <AssistantTextRenderer>{content}</AssistantTextRenderer>
 }
 
 const AssistantTextRenderer = React.memo(function AssistantTextRenderer({

@@ -12,6 +12,12 @@
 import { App } from 'obsidian'
 import { v4 as uuidv4 } from 'uuid'
 
+import type { SmartComposerSettings } from '../../settings/schema/setting.types'
+import { ChatMessage, ChatToolMessage } from '../../types/chat'
+import { ChatModel } from '../../types/chat-model.types'
+import { LLMProvider } from '../../types/provider.types'
+import { ToolCallResponseStatus } from '../../types/tool-call.types'
+import { PromptGenerator } from '../../utils/chat/promptGenerator'
 import { BaseLLMProvider } from '../llm/base'
 import { McpManager, SessionMode } from '../mcp/mcpManager'
 import { ApprovalPolicyImpl } from '../policy/ApprovalPolicyImpl'
@@ -20,12 +26,6 @@ import type { ApprovalPolicy } from '../policy/types'
 import { buildToolRegistry } from '../tools/buildToolRegistry'
 import type { ToolRegistry } from '../tools/ToolRegistry'
 import { ToolRegistryImpl } from '../tools/ToolRegistryImpl'
-import { ChatMessage, ChatToolMessage } from '../../types/chat'
-import { ChatModel } from '../../types/chat-model.types'
-import { LLMProvider } from '../../types/provider.types'
-import type { SmartComposerSettings } from '../../settings/schema/setting.types'
-import { ToolCallResponseStatus } from '../../types/tool-call.types'
-import { PromptGenerator } from '../../utils/chat/promptGenerator'
 
 import { ToolExecutor } from './ToolExecutor'
 import { TurnEngine } from './TurnEngine'
@@ -150,10 +150,7 @@ export class ConversationHarness {
         let streamedToolMessageId: string | null = null
         let streamedExecutionPromise: Promise<void> | null = null
 
-        const allMessages = [
-          ...this.receivedMessages,
-          ...this.responseMessages,
-        ]
+        const allMessages = [...this.receivedMessages, ...this.responseMessages]
 
         const { toolCallRequests } = await this.turnEngine.run({
           allMessages,
@@ -193,7 +190,10 @@ export class ConversationHarness {
           this.notifySubscribers()
           await this.executeAutoToolCalls(toolMessage)
         } else {
-          await streamedExecutionPromise
+          const pendingExecution = streamedExecutionPromise
+          if (pendingExecution) {
+            await Promise.resolve(pendingExecution)
+          }
         }
 
         const updatedToolMessage = this.responseMessages.find(
@@ -223,7 +223,9 @@ export class ConversationHarness {
     }
   }
 
-  private async executeAutoToolCalls(toolMessage: ChatToolMessage): Promise<void> {
+  private async executeAutoToolCalls(
+    toolMessage: ChatToolMessage,
+  ): Promise<void> {
     const autoExecutableCalls = toolMessage.toolCalls.filter(
       (tc) => tc.response.status === ToolCallResponseStatus.Running,
     )
@@ -236,7 +238,9 @@ export class ConversationHarness {
     )
 
     await Promise.all(
-      parallelCalls.map((tc) => this.executeAndUpdateToolCall(toolMessage.id, tc)),
+      parallelCalls.map((tc) =>
+        this.executeAndUpdateToolCall(toolMessage.id, tc),
+      ),
     )
 
     for (const tc of serialCalls) {
@@ -276,7 +280,9 @@ export class ConversationHarness {
     return entry?.tier === 'read-only' && entry.source === 'builtin'
   }
 
-  private canStreamExecuteToolCalls(toolCallRequests: { name: string }[]): boolean {
+  private canStreamExecuteToolCalls(
+    toolCallRequests: { name: string }[],
+  ): boolean {
     return (
       toolCallRequests.length > 0 &&
       toolCallRequests.every(

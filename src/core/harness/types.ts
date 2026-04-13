@@ -12,10 +12,13 @@
  */
 
 import type { ChatMessage, ChatToolMessage } from '../../types/chat'
-import type { ToolCallRequest, ToolCallResponse } from '../../types/tool-call.types'
+import type {
+  ToolCallRequest,
+  ToolCallResponse,
+} from '../../types/tool-call.types'
 import type { ContextBuilder } from '../context/types'
-import type { ToolPermissionPolicy } from '../policy/types'
 import type { SessionMode } from '../mcp/mcpManager'
+import type { ToolPermissionPolicy } from '../policy/types'
 import type { ToolRegistry } from '../tools/ToolRegistry'
 
 // ─── Turn Delta ──────────────────────────────────────────────────────────────
@@ -69,7 +72,7 @@ export type TurnDelta =
 
 // ─── TurnEngine Options ──────────────────────────────────────────────────────
 
-export interface TurnEngineOptions {
+export type TurnEngineOptions = {
   /** 当前完整对话历史（含本轮用户消息） */
   messages: ChatMessage[]
 
@@ -107,17 +110,20 @@ export interface TurnEngineOptions {
  * 4. 遇到 tool_use 时：通过 policy 决定 allow/ask/deny，执行或等待批准
  * 5. 工具执行完毕后进入下一迭代，直到没有工具调用或达到 maxIterations
  */
-export interface TurnEngine {
+export type TurnEngine = {
   /**
    * 执行一次完整的 turn（可能包含多轮工具调用迭代）。
    * 通过 onDelta 回调流式推送事件。
    */
-  run(opts: TurnEngineOptions, onDelta: (delta: TurnDelta) => void): Promise<void>
+  run(
+    opts: TurnEngineOptions,
+    onDelta: (delta: TurnDelta) => void,
+  ): Promise<void>
 }
 
 // ─── ConversationHarness Options ─────────────────────────────────────────────
 
-export interface ConversationHarnessOptions {
+export type ConversationHarnessOptions = {
   conversationId: string
   registry: ToolRegistry
   policy: ToolPermissionPolicy
@@ -139,7 +145,7 @@ export interface ConversationHarnessOptions {
  *
  * UI 只与 ConversationHarness 交互，不直接调用 TurnEngine / ToolRegistry。
  */
-export interface ConversationHarness {
+export type ConversationHarness = {
   /**
    * 提交新的用户消息并启动一轮对话。
    * 通过 subscribe() 的回调推送更新。

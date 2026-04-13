@@ -13,13 +13,18 @@
  * 6. 未知工具 → 'ask'
  */
 
-import { InvalidToolNameException } from '../mcp/exception'
+import type { SmartComposerSettings } from '../../settings/schema/setting.types'
 import { getBuiltinToolTier } from '../mcp/builtin-tool-tiers'
+import { InvalidToolNameException } from '../mcp/exception'
+import type { SessionMode } from '../mcp/mcpManager'
 import { parseToolName } from '../mcp/tool-name-utils'
 import type { ToolRegistry } from '../tools/ToolRegistry'
-import type { SmartComposerSettings } from '../../settings/schema/setting.types'
-import type { SessionMode } from '../mcp/mcpManager'
-import type { ApprovalDecision, ApprovalPolicy, ToolPermissionPolicy } from './types'
+
+import type {
+  ApprovalDecision,
+  ApprovalPolicy,
+  ToolPermissionPolicy,
+} from './types'
 
 export class ToolPermissionPolicyImpl implements ToolPermissionPolicy {
   constructor(
@@ -43,7 +48,10 @@ export class ToolPermissionPolicyImpl implements ToolPermissionPolicy {
   /**
    * 获取工具调用的审批决策。
    */
-  getApprovalDecision(toolName: string, conversationId?: string): ApprovalDecision {
+  getApprovalDecision(
+    toolName: string,
+    conversationId?: string,
+  ): ApprovalDecision {
     // 1. 会话级批准优先
     if (
       conversationId &&
@@ -60,8 +68,10 @@ export class ToolPermissionPolicyImpl implements ToolPermissionPolicy {
       if (builtinOverride === 'allow') return 'allow'
       if (builtinOverride === 'deny') return 'deny'
 
-      if (tier === 'read-only') return this.builtinDefaultPolicy().readOnlyDefault
-      if (tier === 'danger-zone') return this.builtinDefaultPolicy().dangerousDefault
+      if (tier === 'read-only')
+        return this.builtinDefaultPolicy().readOnlyDefault
+      if (tier === 'danger-zone')
+        return this.builtinDefaultPolicy().dangerousDefault
       return this.builtinDefaultPolicy().readWriteDefault
     }
 
@@ -107,15 +117,17 @@ export class ToolPermissionPolicyImpl implements ToolPermissionPolicy {
     dangerousDefault: ApprovalDecision
   } {
     const settings = this.getSettings()
-    const builtinPolicy = (settings.mcp as {
-      builtin?: {
-        policy?: {
-          readOnlyDefault?: ApprovalDecision
-          readWriteDefault?: ApprovalDecision
-          dangerousDefault?: ApprovalDecision
+    const builtinPolicy = (
+      settings.mcp as {
+        builtin?: {
+          policy?: {
+            readOnlyDefault?: ApprovalDecision
+            readWriteDefault?: ApprovalDecision
+            dangerousDefault?: ApprovalDecision
+          }
         }
       }
-    }).builtin?.policy
+    ).builtin?.policy
 
     return {
       readOnlyDefault: builtinPolicy?.readOnlyDefault ?? 'allow',
@@ -128,11 +140,13 @@ export class ToolPermissionPolicyImpl implements ToolPermissionPolicy {
 
   private getBuiltinToolOverride(toolName: string): ApprovalDecision | null {
     const settings = this.getSettings()
-    const option = (settings.mcp as {
-      builtin?: {
-        toolOptions?: Record<string, { autoExecute?: boolean }>
+    const option = (
+      settings.mcp as {
+        builtin?: {
+          toolOptions?: Record<string, { autoExecute?: boolean }>
+        }
       }
-    }).builtin?.toolOptions?.[toolName]
+    ).builtin?.toolOptions?.[toolName]
 
     if (option?.autoExecute === true) return 'allow'
     return null

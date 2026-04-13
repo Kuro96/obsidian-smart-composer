@@ -31,7 +31,7 @@ export type ApprovalDecision = 'allow' | 'ask' | 'deny'
  *
  * 重构后，这里成为唯一权威，UI 订阅此接口的变更。
  */
-export interface SessionModePolicy {
+export type SessionModePolicy = {
   readonly mode: SessionMode
 
   setMode(mode: SessionMode): void
@@ -55,7 +55,7 @@ export interface SessionModePolicy {
  *
  * 该接口整合了当前 McpManager.isToolExecutionAllowed() 和 allowToolForConversation() 的职责。
  */
-export interface ToolPermissionPolicy {
+export type ToolPermissionPolicy = {
   /**
    * 工具是否在当前 session 模式下可见（即是否应出现在 LLM 的工具列表中）。
    * read-only 模式下，tier 为 read-write 或 danger-zone 的工具不可见。
@@ -96,7 +96,7 @@ export interface ToolPermissionPolicy {
  *
  * 对应当前 McpManager.allowToolForConversation() 和 settings.toolOptions.allowAutoExecution。
  */
-export interface ApprovalPolicy {
+export type ApprovalPolicy = {
   /**
    * 某工具在指定会话中是否已被用户批准自动执行。
    */

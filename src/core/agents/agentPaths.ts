@@ -14,7 +14,7 @@ export function getAgentsDirectoryName(settings: HasAgentsDirectory): string {
     .replace(/\\/g, '/')
     .replace(/^\/+|\/+$/g, '')
 
-  return trimmed || DEFAULT_AGENTS_DIRECTORY_NAME
+  return trimmed ?? DEFAULT_AGENTS_DIRECTORY_NAME
 }
 
 export function getVaultSkillsRelativePath(

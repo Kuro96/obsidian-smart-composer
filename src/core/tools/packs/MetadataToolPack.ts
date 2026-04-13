@@ -7,7 +7,7 @@
  *   写入：note_frontmatter_set, note_frontmatter_delete, vault_move
  */
 
-import { App, TFile } from 'obsidian'
+import { App } from 'obsidian'
 
 import type { ToolEntry, ToolRegistry } from '../ToolRegistry'
 import { normalizeVaultPath } from '../vaultUtils'
@@ -15,17 +15,16 @@ import { normalizeVaultPath } from '../vaultUtils'
 // ─── 内部工具函数 ──────────────────────────────────────────────────────────────
 
 /** 从 frontmatter 中删除 Obsidian 内部字段 */
-function cleanFrontmatter(fm: Record<string, unknown>): Record<string, unknown> {
+function cleanFrontmatter(
+  fm: Record<string, unknown>,
+): Record<string, unknown> {
   const result = { ...fm }
-  delete result['position']
+  delete result.position
   return result
 }
 
 /** 从嵌套路径（如 "frontmatter.status"）读取字段值 */
-function getFieldValue(
-  noteData: NoteData,
-  field: string,
-): unknown {
+function getFieldValue(noteData: NoteData, field: string): unknown {
   if (field.startsWith('frontmatter.')) {
     const key = field.slice('frontmatter.'.length)
     return noteData.frontmatter[key]
@@ -33,7 +32,7 @@ function getFieldValue(
   return (noteData as unknown as Record<string, unknown>)[field]
 }
 
-interface NoteData {
+type NoteData = {
   path: string
   basename: string
   extension: string
@@ -46,7 +45,7 @@ interface NoteData {
   links: unknown[]
 }
 
-interface VaultQueryFilter {
+type VaultQueryFilter = {
   pathPrefix?: string
   pathContains?: string
   tagsAll?: string[]
@@ -55,7 +54,7 @@ interface VaultQueryFilter {
   extension?: string
 }
 
-interface SortSpec {
+type SortSpec = {
   field: string
   direction?: 'asc' | 'desc'
 }
@@ -75,7 +74,6 @@ export class MetadataToolPack {
     const app = this.app
 
     return [
-
       // ── note_frontmatter_get ──────────────────────────────────────────────
 
       {
@@ -86,7 +84,10 @@ export class MetadataToolPack {
           inputSchema: {
             type: 'object',
             properties: {
-              path: { type: 'string', description: 'Vault-relative path of the note.' },
+              path: {
+                type: 'string',
+                description: 'Vault-relative path of the note.',
+              },
             },
             required: ['path'],
           },
@@ -100,9 +101,16 @@ export class MetadataToolPack {
             throw new Error('note_frontmatter_get requires a non-empty "path"')
           const relativePath = normalizeVaultPath(rawPath)
           const file = app.vault.getFileByPath(relativePath)
-          if (!file) throw new Error(`note_frontmatter_get: file not found: ${relativePath}`)
+          if (!file)
+            throw new Error(
+              `note_frontmatter_get: file not found: ${relativePath}`,
+            )
           const cache = app.metadataCache.getFileCache(file)
-          return JSON.stringify(cleanFrontmatter(cache?.frontmatter ?? {}), null, 2)
+          return JSON.stringify(
+            cleanFrontmatter(cache?.frontmatter ?? {}),
+            null,
+            2,
+          )
         },
       },
 
@@ -112,14 +120,18 @@ export class MetadataToolPack {
         tool: {
           name: 'note_frontmatter_set',
           description:
-            'Atomically update frontmatter fields in a note using Obsidian\'s official processFrontMatter API. This is the preferred way to change frontmatter and should be used instead of editing YAML manually. Safe for concurrent access and does not touch the note body.',
+            "Atomically update frontmatter fields in a note using Obsidian's official processFrontMatter API. This is the preferred way to change frontmatter and should be used instead of editing YAML manually. Safe for concurrent access and does not touch the note body.",
           inputSchema: {
             type: 'object',
             properties: {
-              path: { type: 'string', description: 'Vault-relative path of the note.' },
+              path: {
+                type: 'string',
+                description: 'Vault-relative path of the note.',
+              },
               updates: {
                 type: 'object',
-                description: 'Key-value pairs to set or update in the frontmatter.',
+                description:
+                  'Key-value pairs to set or update in the frontmatter.',
               },
               removeKeys: {
                 type: 'array',
@@ -144,7 +156,10 @@ export class MetadataToolPack {
             throw new Error('note_frontmatter_set requires a non-empty "path"')
           const relativePath = normalizeVaultPath(rawPath)
           const file = app.vault.getFileByPath(relativePath)
-          if (!file) throw new Error(`note_frontmatter_set: file not found: ${relativePath}`)
+          if (!file)
+            throw new Error(
+              `note_frontmatter_set: file not found: ${relativePath}`,
+            )
 
           const updates = args?.updates as Record<string, unknown> | undefined
           const removeKeys = Array.isArray(args?.removeKeys)
@@ -155,8 +170,17 @@ export class MetadataToolPack {
           await app.fileManager.processFrontMatter(file, (fm) => {
             if (updates) {
               for (const [key, value] of Object.entries(updates)) {
-                if (mergeArrays && Array.isArray(fm[key]) && Array.isArray(value)) {
-                  fm[key] = [...new Set([...(fm[key] as unknown[]), ...(value as unknown[])])]
+                if (
+                  mergeArrays &&
+                  Array.isArray(fm[key]) &&
+                  Array.isArray(value)
+                ) {
+                  fm[key] = [
+                    ...new Set([
+                      ...(fm[key] as unknown[]),
+                      ...(value as unknown[]),
+                    ]),
+                  ]
                 } else {
                   fm[key] = value
                 }
@@ -181,11 +205,14 @@ export class MetadataToolPack {
         tool: {
           name: 'note_frontmatter_delete',
           description:
-            'Remove specific keys from a note\'s frontmatter. Use this instead of editing YAML manually. Uses Obsidian\'s processFrontMatter API.',
+            "Remove specific keys from a note's frontmatter. Use this instead of editing YAML manually. Uses Obsidian's processFrontMatter API.",
           inputSchema: {
             type: 'object',
             properties: {
-              path: { type: 'string', description: 'Vault-relative path of the note.' },
+              path: {
+                type: 'string',
+                description: 'Vault-relative path of the note.',
+              },
               keys: {
                 type: 'array',
                 items: { type: 'string' },
@@ -202,12 +229,19 @@ export class MetadataToolPack {
           const rawPath = args?.path
           const keys = Array.isArray(args?.keys) ? (args.keys as string[]) : []
           if (typeof rawPath !== 'string' || rawPath.trim().length === 0)
-            throw new Error('note_frontmatter_delete requires a non-empty "path"')
+            throw new Error(
+              'note_frontmatter_delete requires a non-empty "path"',
+            )
           if (keys.length === 0)
-            throw new Error('note_frontmatter_delete requires a non-empty "keys" array')
+            throw new Error(
+              'note_frontmatter_delete requires a non-empty "keys" array',
+            )
           const relativePath = normalizeVaultPath(rawPath)
           const file = app.vault.getFileByPath(relativePath)
-          if (!file) throw new Error(`note_frontmatter_delete: file not found: ${relativePath}`)
+          if (!file)
+            throw new Error(
+              `note_frontmatter_delete: file not found: ${relativePath}`,
+            )
           await app.fileManager.processFrontMatter(file, (fm) => {
             for (const key of keys) delete fm[key]
           })
@@ -221,12 +255,20 @@ export class MetadataToolPack {
         tool: {
           name: 'vault_move',
           description:
-            'Move or rename a vault file or folder. Read the target first if you need to inspect it, then use this tool for the path change instead of suggesting a manual rename. Uses Obsidian\'s fileManager.renameFile() so wiki-links pointing to the file are updated automatically.',
+            "Move or rename a vault file or folder. Read the target first if you need to inspect it, then use this tool for the path change instead of suggesting a manual rename. Uses Obsidian's fileManager.renameFile() so wiki-links pointing to the file are updated automatically.",
           inputSchema: {
             type: 'object',
             properties: {
-              path: { type: 'string', description: 'Vault-relative current path of the file or folder.' },
-              newPath: { type: 'string', description: 'Vault-relative destination path (including filename).' },
+              path: {
+                type: 'string',
+                description:
+                  'Vault-relative current path of the file or folder.',
+              },
+              newPath: {
+                type: 'string',
+                description:
+                  'Vault-relative destination path (including filename).',
+              },
             },
             required: ['path', 'newPath'],
           },
@@ -244,7 +286,8 @@ export class MetadataToolPack {
           const relativePath = normalizeVaultPath(rawPath)
           const newRelativePath = normalizeVaultPath(rawNewPath)
           const file = app.vault.getAbstractFileByPath(relativePath)
-          if (!file) throw new Error(`vault_move: path not found: ${relativePath}`)
+          if (!file)
+            throw new Error(`vault_move: path not found: ${relativePath}`)
           await app.fileManager.renameFile(file, newRelativePath)
           return `Moved ${relativePath} → ${newRelativePath}`
         },
@@ -262,11 +305,13 @@ export class MetadataToolPack {
             properties: {
               pathPrefix: {
                 type: 'string',
-                description: 'If set, only scan notes under this vault-relative path prefix.',
+                description:
+                  'If set, only scan notes under this vault-relative path prefix.',
               },
               minCount: {
                 type: 'number',
-                description: 'Only include properties that appear at least this many times. Default 1.',
+                description:
+                  'Only include properties that appear at least this many times. Default 1.',
               },
             },
             required: [],
@@ -276,8 +321,10 @@ export class MetadataToolPack {
         source: 'builtin',
         approvalRequired: false,
         handler: async (args) => {
-          const pathPrefix = typeof args?.pathPrefix === 'string' ? args.pathPrefix : undefined
-          const minCount = typeof args?.minCount === 'number' ? args.minCount : 1
+          const pathPrefix =
+            typeof args?.pathPrefix === 'string' ? args.pathPrefix : undefined
+          const minCount =
+            typeof args?.minCount === 'number' ? args.minCount : 1
 
           const propCounts: Record<string, number> = {}
           for (const file of app.vault.getMarkdownFiles()) {
@@ -314,7 +361,8 @@ export class MetadataToolPack {
               },
               pathPrefix: {
                 type: 'string',
-                description: 'If set, only scan notes under this vault-relative path prefix.',
+                description:
+                  'If set, only scan notes under this vault-relative path prefix.',
               },
               groupByValue: {
                 type: 'boolean',
@@ -323,7 +371,8 @@ export class MetadataToolPack {
               },
               limit: {
                 type: 'number',
-                description: 'Maximum number of entries to return. Default 500.',
+                description:
+                  'Maximum number of entries to return. Default 500.',
               },
             },
             required: ['property'],
@@ -335,8 +384,11 @@ export class MetadataToolPack {
         handler: async (args) => {
           const property = args?.property
           if (typeof property !== 'string' || property.trim().length === 0)
-            throw new Error('vault_property_values requires a non-empty "property"')
-          const pathPrefix = typeof args?.pathPrefix === 'string' ? args.pathPrefix : undefined
+            throw new Error(
+              'vault_property_values requires a non-empty "property"',
+            )
+          const pathPrefix =
+            typeof args?.pathPrefix === 'string' ? args.pathPrefix : undefined
           const groupByValue = args?.groupByValue !== false
           const limit = typeof args?.limit === 'number' ? args.limit : 500
 
@@ -403,11 +455,13 @@ export class MetadataToolPack {
                   },
                   required: ['field'],
                 },
-                description: 'Sort order. Applied after filtering. Supports the same field names as "select".',
+                description:
+                  'Sort order. Applied after filtering. Supports the same field names as "select".',
               },
               limit: {
                 type: 'number',
-                description: 'Maximum number of results to return. Default 100.',
+                description:
+                  'Maximum number of results to return. Default 100.',
               },
             },
             required: [],
@@ -435,9 +489,15 @@ export class MetadataToolPack {
 
             // ── Apply filters ────────────────────────────────────────────
             if (filter) {
-              if (filter.pathPrefix && !file.path.startsWith(filter.pathPrefix)) continue
-              if (filter.pathContains && !file.path.includes(filter.pathContains)) continue
-              if (filter.extension && file.extension !== filter.extension) continue
+              if (filter.pathPrefix && !file.path.startsWith(filter.pathPrefix))
+                continue
+              if (
+                filter.pathContains &&
+                !file.path.includes(filter.pathContains)
+              )
+                continue
+              if (filter.extension && file.extension !== filter.extension)
+                continue
               if (
                 filter.tagsAll &&
                 filter.tagsAll.length > 0 &&
@@ -516,7 +576,10 @@ export class MetadataToolPack {
           inputSchema: {
             type: 'object',
             properties: {
-              path: { type: 'string', description: 'Vault-relative path of the note.' },
+              path: {
+                type: 'string',
+                description: 'Vault-relative path of the note.',
+              },
             },
             required: ['path'],
           },
@@ -530,10 +593,12 @@ export class MetadataToolPack {
             throw new Error('note_links_get requires a non-empty "path"')
           const relativePath = normalizeVaultPath(rawPath)
           const file = app.vault.getFileByPath(relativePath)
-          if (!file) throw new Error(`note_links_get: file not found: ${relativePath}`)
+          if (!file)
+            throw new Error(`note_links_get: file not found: ${relativePath}`)
 
           const cache = app.metadataCache.getFileCache(file)
-          const resolvedLinks = app.metadataCache.resolvedLinks[relativePath] ?? {}
+          const resolvedLinks =
+            app.metadataCache.resolvedLinks[relativePath] ?? {}
 
           const links = (cache?.links ?? []).map((link) => ({
             original: link.original,
@@ -541,7 +606,8 @@ export class MetadataToolPack {
             link: link.link,
             resolvedPath:
               Object.keys(resolvedLinks).find(
-                (p) => p.endsWith(`/${link.link}.md`) || p === `${link.link}.md`,
+                (p) =>
+                  p.endsWith(`/${link.link}.md`) || p === `${link.link}.md`,
               ) ?? null,
           }))
 
@@ -559,7 +625,11 @@ export class MetadataToolPack {
           inputSchema: {
             type: 'object',
             properties: {
-              path: { type: 'string', description: 'Vault-relative path of the note to find backlinks for.' },
+              path: {
+                type: 'string',
+                description:
+                  'Vault-relative path of the note to find backlinks for.',
+              },
             },
             required: ['path'],
           },

@@ -30,14 +30,19 @@ export class WorkspaceToolPack {
           inputSchema: {
             type: 'object',
             properties: {
-              path: { type: 'string', description: 'Vault-relative path of the note to open.' },
+              path: {
+                type: 'string',
+                description: 'Vault-relative path of the note to open.',
+              },
               newLeaf: {
                 type: 'boolean',
-                description: 'When true, open in a new tab instead of reusing an existing leaf. Default false.',
+                description:
+                  'When true, open in a new tab instead of reusing an existing leaf. Default false.',
               },
               line: {
                 type: 'number',
-                description: 'Line number (1-indexed) to scroll to after opening.',
+                description:
+                  'Line number (1-indexed) to scroll to after opening.',
               },
             },
             required: ['path'],
@@ -55,7 +60,8 @@ export class WorkspaceToolPack {
           if (!file || !(file instanceof TFile))
             throw new Error(`note_open: file not found: ${relativePath}`)
           const newLeaf = args?.newLeaf === true
-          const line = typeof args?.line === 'number' ? Math.max(1, args.line) : undefined
+          const line =
+            typeof args?.line === 'number' ? Math.max(1, args.line) : undefined
           const leaf = newLeaf
             ? app.workspace.getLeaf('tab')
             : app.workspace.getLeaf(false)

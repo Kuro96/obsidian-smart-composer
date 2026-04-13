@@ -49,5 +49,8 @@ manifest.json
 # Obsidian
 .obsidian
 
+# local temp worktrees
+tmp
+
 # Markdown
 *.md

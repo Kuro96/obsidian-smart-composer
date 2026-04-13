@@ -13,7 +13,9 @@ type VaultAdapter = {
   exists?: (path: string, sensitive?: boolean) => Promise<boolean>
 }
 
-export function getVaultAdapter(app: { vault: { adapter: unknown } }): VaultAdapter {
+export function getVaultAdapter(app: {
+  vault: { adapter: unknown }
+}): VaultAdapter {
   return app.vault.adapter as VaultAdapter
 }
 
@@ -21,7 +23,9 @@ export function normalizeVaultPath(input: string): string {
   const normalized = input.trim().replace(/\\/g, '/').replace(/^\.\//, '')
   if (normalized.length === 0) return ''
   if (normalized.startsWith('/')) {
-    throw new Error('Vault path must be relative, absolute paths are not allowed')
+    throw new Error(
+      'Vault path must be relative, absolute paths are not allowed',
+    )
   }
   const parsed = path.posix.normalize(normalized)
   if (parsed === '..' || parsed.startsWith('../') || parsed.includes('/../')) {
