@@ -14,7 +14,7 @@
  *
  * 新顺序（cache 友好）：
  *   1. 稳定 prefix：system(单一版本，由 settings.vaultChatEnabled 决定，会话级稳定)
- *      → customInstr(来自 settings) → skill(来自 settings/mcp)
+ *      → projectInstr(来自 AGENTS.md / settings fallback) → skill(来自 settings/mcp)
  *   2. 历史消息：含已发送的 user message。currentFile snapshot 在 compileUserMessagePrompt
  *      阶段已嵌入到各 user message 的 promptContent，所以 history 是稳定快照
  *   3. 末尾：rag 引用指令（仅当 vaultChatEnabled，会话级稳定）
@@ -37,6 +37,7 @@ import { RequestMessage } from '../../types/llm/request'
 import { PromptLevel } from '../../types/prompt-level.types'
 import { ToolCallResponseStatus } from '../../types/tool-call.types'
 
+import { AgentsManager } from '../agents/AgentsManager'
 import { McpManager } from '../mcp/mcpManager'
 
 const MAX_CONTEXT_MESSAGES = 20
@@ -61,7 +62,7 @@ export class ContextBuilder {
   }): Promise<RequestMessage[]> {
     // ─── 稳定 prefix ───────────────────────────────────────────────
     const systemMessage = this.getSystemMessage()
-    const customInstructionMessage = this.getCustomInstructionMessage()
+    const customInstructionMessage = await this.getCustomInstructionMessage()
     const skillMessage = await this.getSkillMessage()
 
     // ─── 历史消息（含 user / assistant / tool） ─────────────────────
@@ -163,11 +164,15 @@ ${
 
   // ─── Custom Instructions ────────────────────────────────────────────────────
 
-  private getCustomInstructionMessage(): RequestMessage | null {
-    const customInstruction = this.settings.systemPrompt.trim()
+  private async getCustomInstructionMessage(): Promise<RequestMessage | null> {
+    const agentsManager = new AgentsManager(this.app)
+    const agentsInstructions = (await agentsManager.getSnapshot()).content
+    const customInstruction =
+      agentsInstructions || this.settings.systemPrompt.trim()
     if (!customInstruction) {
       return null
     }
+
     return {
       role: 'user',
       content: `Here are additional instructions to follow in your responses when relevant. There's no need to explicitly acknowledge them:
