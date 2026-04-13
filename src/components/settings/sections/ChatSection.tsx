@@ -5,7 +5,6 @@ import {
 import { useSettings } from '../../../contexts/settings-context'
 import { ObsidianDropdown } from '../../common/ObsidianDropdown'
 import { ObsidianSetting } from '../../common/ObsidianSetting'
-import { ObsidianTextArea } from '../../common/ObsidianTextArea'
 import { ObsidianTextInput } from '../../common/ObsidianTextInput'
 import { ObsidianToggle } from '../../common/ObsidianToggle'
 
@@ -63,21 +62,14 @@ export function ChatSection() {
       </ObsidianSetting>
 
       <ObsidianSetting
-        name="System prompt"
-        desc="This prompt will be added to the beginning of every chat."
-        className="smtcmp-settings-textarea-header"
-      />
-
-      <ObsidianSetting className="smtcmp-settings-textarea">
-        <ObsidianTextArea
-          value={settings.systemPrompt}
-          onChange={async (value: string) => {
-            await setSettings({
-              ...settings,
-              systemPrompt: value,
-            })
-          }}
-        />
+        name="Project instructions"
+        desc="Smart Composer now reads project instructions from AGENTS.md files instead of a settings-based system prompt."
+      >
+        <div className="smtcmp-settings-desc">
+          Add an <code>AGENTS.md</code> file at the vault root for shared rules,
+          and optionally add nested <code>AGENTS.md</code> files in folders to
+          override or extend instructions for notes in that subtree.
+        </div>
       </ObsidianSetting>
 
       <ObsidianSetting
