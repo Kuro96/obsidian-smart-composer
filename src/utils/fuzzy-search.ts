@@ -123,13 +123,14 @@ function getEmptyQueryResult(
     .map((item) => searchItemToMentionable(item))
 }
 
+const SUPPORTED_FILE_EXTENSIONS = ['md', 'base']
+
 export function fuzzySearch(app: App, query: string): SearchableMentionable[] {
   const currentFile = app.workspace.getActiveFile()
   const openFiles = getOpenFiles(app)
 
   const allSupportedFiles = app.vault.getFiles().filter((file) => {
-    const extension = file.extension
-    return extension === 'md'
+    return SUPPORTED_FILE_EXTENSIONS.includes(file.extension)
   })
 
   const allFilesWithMetadata: SearchItem[] = allSupportedFiles.map((file) => ({
