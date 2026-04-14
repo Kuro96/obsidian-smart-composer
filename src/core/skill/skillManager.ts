@@ -1,4 +1,3 @@
-import * as os from 'os'
 import * as path from 'path'
 
 import { SmartComposerSettings } from '../../settings/schema/setting.types'
@@ -14,13 +13,6 @@ type SkillInfo = {
   content: string
   source: 'fs' | 'vault'
   vaultPath?: string
-}
-
-type SkillIndex = {
-  skills?: {
-    name?: string
-    files?: string[]
-  }[]
 }
 
 const LIMIT = 10
@@ -66,39 +58,6 @@ function parseFrontmatter(input: string): {
   }
 
   return { name, description }
-}
-
-async function isDir(dir: string): Promise<boolean> {
-  try {
-    const fs = await import('fs/promises')
-    const stat = await fs.stat(dir)
-    return stat.isDirectory()
-  } catch {
-    return false
-  }
-}
-
-async function walk(dir: string): Promise<string[]> {
-  const fs = await import('fs/promises')
-  const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => [])
-  const nested = await Promise.all(
-    entries.map(async (entry) => {
-      const file = path.join(dir, entry.name)
-      if (entry.isDirectory()) {
-        return walk(file)
-      }
-      return [file]
-    }),
-  )
-  return nested.flat()
-}
-
-function parseIndex(input: string): SkillIndex {
-  try {
-    return JSON.parse(input) as SkillIndex
-  } catch {
-    return {}
-  }
 }
 
 export class SkillManager {
@@ -173,34 +132,15 @@ export class SkillManager {
     const map: Record<string, SkillInfo> = {}
 
     const vault = this.getVaultRoot()
-    const home = os.homedir()
     const settings = this.getSettings()
     const vaultSkillsPath = getVaultSkillsRelativePath(settings)
 
     if (vault) {
-      await this.scanAnyRoot(getVaultSkillsAbsolutePath(settings, vault), map)
+      await this.scanVaultRoot(getVaultSkillsAbsolutePath(settings, vault), map)
     }
 
     await this.scanVaultDir(vaultSkillsPath, map)
     await this.scanVaultAdapterDir(vaultSkillsPath, map)
-
-    for (const item of settings.skills.paths) {
-      const dir = item.startsWith('~/')
-        ? path.join(home, item.slice(2))
-        : path.isAbsolute(item)
-          ? item
-          : vault
-            ? path.join(vault, item)
-            : item
-      await this.scanAnyRoot(dir, map)
-    }
-
-    for (const url of settings.skills.urls) {
-      const dirs = await this.pull(url)
-      for (const dir of dirs) {
-        await this.scanAnyRoot(dir, map)
-      }
-    }
 
     return Object.values(map).sort((a: SkillInfo, b: SkillInfo) =>
       a.name.localeCompare(b.name),
@@ -269,19 +209,7 @@ export class SkillManager {
         ? path.dirname(skill.vaultPath)
         : path.dirname(skill.location)
     const files =
-      skill.source === 'vault'
-        ? await this.listVaultFiles(basePath)
-        : await walk(path.dirname(skill.location)).then((all) =>
-            all
-              .filter(
-                (file) =>
-                  !file.endsWith(`${path.sep}SKILL.md`) &&
-                  !file.endsWith('/SKILL.md'),
-              )
-              .slice(0, LIMIT)
-              .map((file) => `<file>${file}</file>`)
-              .join('\n'),
-          )
+      skill.source === 'vault' ? await this.listVaultFiles(basePath) : ''
 
     return [
       `<skill_content name="${skill.name}">`,
@@ -374,13 +302,32 @@ export class SkillManager {
     return files.join('\n')
   }
 
-  private async scanAnyRoot(root: string, map: Record<string, SkillInfo>) {
-    if (!(await isDir(root))) {
+  private async scanVaultRoot(root: string, map: Record<string, SkillInfo>) {
+    const fs = await import('fs/promises')
+    const stat = await fs.stat(root).catch(() => null)
+    if (!stat?.isDirectory()) {
       return
     }
-    const all = await walk(root)
-    const files = all.filter((file) => path.basename(file) === 'SKILL.md')
-    const fs = await import('fs/promises')
+
+    const walkVaultRoot = async (dir: string): Promise<string[]> => {
+      const entries = await fs
+        .readdir(dir, { withFileTypes: true })
+        .catch(() => [])
+      const nested = await Promise.all(
+        entries.map(async (entry) => {
+          const file = path.join(dir, entry.name)
+          if (entry.isDirectory()) {
+            return walkVaultRoot(file)
+          }
+          return [file]
+        }),
+      )
+      return nested.flat()
+    }
+
+    const files = (await walkVaultRoot(root)).filter(
+      (file) => path.basename(file) === 'SKILL.md',
+    )
     await Promise.all(
       files.map(async (file) => {
         const text = await fs.readFile(file, 'utf8').catch(() => '')
@@ -391,12 +338,17 @@ export class SkillManager {
         if (!parsed.name || !parsed.description) {
           return
         }
+        const rootDir = this.getVaultRoot()
+        const vaultPath = rootDir
+          ? path.relative(rootDir, file)
+          : path.relative(root, file)
         map[parsed.name] = {
           name: parsed.name,
           description: parsed.description,
           location: file,
           content: text,
-          source: 'fs',
+          source: 'vault',
+          vaultPath,
         }
       }),
     )
@@ -518,88 +470,6 @@ export class SkillManager {
         }
       }),
     )
-  }
-
-  private async pull(url: string): Promise<string[]> {
-    const base = url.endsWith('/') ? url : `${url}/`
-    const indexUrl = new URL('index.json', base).href
-    const indexText = await fetch(indexUrl)
-      .then(async (res) => {
-        if (!res.ok) {
-          return ''
-        }
-        return res.text()
-      })
-      .catch(() => '')
-    if (!indexText) {
-      return []
-    }
-
-    const index = parseIndex(indexText)
-    const list = (index.skills ?? []).filter((item) => {
-      return (
-        !!item.name &&
-        Array.isArray(item.files) &&
-        item.files.includes('SKILL.md')
-      )
-    })
-    if (list.length === 0) {
-      return []
-    }
-
-    const cache = path.join(os.tmpdir(), 'obsidian-smart-composer', 'skills')
-    const fs = await import('fs/promises')
-    await fs.mkdir(cache, { recursive: true })
-    const host = base.slice(0, -1)
-
-    const dirs = await Promise.all(
-      list.map(async (item) => {
-        const skillName = item.name
-        if (!skillName) {
-          return null
-        }
-        const root = path.join(cache, skillName)
-        await Promise.all(
-          (item.files ?? []).map(async (file) => {
-            const next = path.join(root, file)
-            if (await isDir(next)) {
-              return
-            }
-            const exists = await fs
-              .stat(next)
-              .then(() => true)
-              .catch(() => false)
-            if (exists) {
-              return
-            }
-            const body = await fetch(
-              new URL(file, `${host}/${skillName}/`).href,
-            )
-              .then(async (res) => {
-                if (!res.ok) {
-                  return null
-                }
-                return res.arrayBuffer()
-              })
-              .catch(() => null)
-            if (!body) {
-              return
-            }
-            await fs.mkdir(path.dirname(next), { recursive: true })
-            await fs.writeFile(next, Buffer.from(body))
-          }),
-        )
-
-        const md = path.join(root, 'SKILL.md')
-        const ok = await fs
-          .stat(md)
-          .then((stat) => stat.isFile())
-          .catch(() => false)
-        return ok ? root : null
-      }),
-    )
-
-    return dirs.filter((dir): dir is string => !!dir)
   }
 
   private isEnabled(name: string): boolean {

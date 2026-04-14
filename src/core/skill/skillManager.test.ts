@@ -1,3 +1,7 @@
+import * as os from 'os'
+import * as path from 'path'
+import * as fs from 'fs/promises'
+
 import { smartComposerSettingsSchema } from '../../settings/schema/setting.types'
 
 import { SkillManager } from './skillManager'
@@ -122,5 +126,39 @@ Use this skill.
     expect(list).toHaveLength(1)
     expect(list[0].name).toBe('tool-skill')
     expect(list[0].vaultPath).toBe('.smart-agents/skills/tool-skill/SKILL.md')
+  })
+
+  it('ignores configured external skill paths outside the vault', async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'skill-manager-'))
+    const externalSkill = path.join(tempRoot, 'external-skill')
+
+    await fs.mkdir(externalSkill, { recursive: true })
+    await fs.writeFile(
+      path.join(externalSkill, 'SKILL.md'),
+      `---
+name: external-skill
+description: External skill.
+---
+
+# External Skill
+`,
+      'utf8',
+    )
+
+    try {
+      const settings = smartComposerSettingsSchema.parse({
+        skills: {
+          paths: [externalSkill],
+        },
+      })
+      const manager = new SkillManager({
+        getSettings: () => settings,
+        getVaultRoot: () => '/tmp/vault',
+      })
+
+      await expect(manager.list()).resolves.toHaveLength(0)
+    } finally {
+      await fs.rm(tempRoot, { recursive: true, force: true })
+    }
   })
 })
