@@ -1,10 +1,7 @@
 import * as path from 'path'
 
 import { SmartComposerSettings } from '../../settings/schema/setting.types'
-import {
-  getVaultSkillsAbsolutePath,
-  getVaultSkillsRelativePath,
-} from '../agents/agentPaths'
+import { getVaultSkillsRelativePath } from '../agents/agentPaths'
 
 type SkillInfo = {
   name: string
@@ -131,13 +128,8 @@ export class SkillManager {
   public async listAll() {
     const map: Record<string, SkillInfo> = {}
 
-    const vault = this.getVaultRoot()
     const settings = this.getSettings()
     const vaultSkillsPath = getVaultSkillsRelativePath(settings)
-
-    if (vault) {
-      await this.scanVaultRoot(getVaultSkillsAbsolutePath(settings, vault), map)
-    }
 
     await this.scanVaultDir(vaultSkillsPath, map)
     await this.scanVaultAdapterDir(vaultSkillsPath, map)
@@ -300,58 +292,6 @@ export class SkillManager {
 
     visit(rootNode)
     return files.join('\n')
-  }
-
-  private async scanVaultRoot(root: string, map: Record<string, SkillInfo>) {
-    const fs = await import('fs/promises')
-    const stat = await fs.stat(root).catch(() => null)
-    if (!stat?.isDirectory()) {
-      return
-    }
-
-    const walkVaultRoot = async (dir: string): Promise<string[]> => {
-      const entries = await fs
-        .readdir(dir, { withFileTypes: true })
-        .catch(() => [])
-      const nested = await Promise.all(
-        entries.map(async (entry) => {
-          const file = path.join(dir, entry.name)
-          if (entry.isDirectory()) {
-            return walkVaultRoot(file)
-          }
-          return [file]
-        }),
-      )
-      return nested.flat()
-    }
-
-    const files = (await walkVaultRoot(root)).filter(
-      (file) => path.basename(file) === 'SKILL.md',
-    )
-    await Promise.all(
-      files.map(async (file) => {
-        const text = await fs.readFile(file, 'utf8').catch(() => '')
-        if (!text) {
-          return
-        }
-        const parsed = parseFrontmatter(text)
-        if (!parsed.name || !parsed.description) {
-          return
-        }
-        const rootDir = this.getVaultRoot()
-        const vaultPath = rootDir
-          ? path.relative(rootDir, file)
-          : path.relative(root, file)
-        map[parsed.name] = {
-          name: parsed.name,
-          description: parsed.description,
-          location: file,
-          content: text,
-          source: 'vault',
-          vaultPath,
-        }
-      }),
-    )
   }
 
   private async scanVaultDir(root: string, map: Record<string, SkillInfo>) {
