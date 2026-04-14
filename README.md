@@ -108,7 +108,7 @@ MCP lets you use powerful third-party tools and data sources right inside your c
   - MorphLLM
   - Any other OpenAI-compatible providers
 - **Local Model Support**: Run open-source LLMs and embedding models locally with [Ollama](https://ollama.ai) for complete privacy and offline usage.
-- **Custom System Prompts**: Define your own system prompts that will be applied to every chat conversation.
+- **Project Instructions via `AGENTS.md`**: Define shared instructions in `AGENTS.md` at the vault root, and add nested `AGENTS.md` files in subfolders for folder-specific guidance.
 - **Prompt Templates**: Create and reuse templates for common queries by typing `/` in the chat view. Perfect for standardizing repetitive tasks.
   - Create templates from any selected text with one click
 
